@@ -73,7 +73,11 @@ async function translateToEnglish(text) {
         }
 
         const data = await response.json();
-        return data.translations && data.translations[0] ? data.translations[0] : text;
+        if (data.success && data.translations && data.translations[0]) {
+            const translation = data.translations[0];
+            return translation.translated_text || text;
+        }
+        return text;
     } catch (error) {
         console.warn('Translation error:', error);
         return text; // Return original text if translation fails
@@ -120,9 +124,14 @@ async function batchTranslateToEnglish(texts) {
         const data = await response.json();
         const result = {};
         
-        if (data.translations && Array.isArray(data.translations)) {
+        if (data.success && data.translations && Array.isArray(data.translations)) {
             texts.forEach((text, index) => {
-                result[text] = data.translations[index] || text;
+                const translation = data.translations[index];
+                if (translation && translation.translated_text) {
+                    result[text] = translation.translated_text;
+                } else {
+                    result[text] = text;
+                }
             });
         } else {
             // Fallback: return original texts
