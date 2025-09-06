@@ -12,7 +12,7 @@ const extensionName = "SillyTavern-Chub-Search";
 const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 
 // Endpoint for API call
-const API_ENDPOINT_SEARCH = "https://api.chub.ai/api/characters/search";
+const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
 
 const defaultSettings = {
@@ -145,25 +145,25 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     let require_images = false;
     let require_custom_prompt = false;
     searchTerm = searchTerm ? `search=${encodeURIComponent(searchTerm)}&` : '';
-    sort = sort || 'download_count';
+    sort = sort || 'default';
 
     // Construct the URL with the search parameters, if any
     // 
-    let url = `${API_ENDPOINT_SEARCH}?${searchTerm}first=${first}&page=${page}&sort=${sort}&asc=${asc}&venus=true&include_forks=${include_forks}&nsfw=${nsfw}&require_images=${require_images}&require_custom_prompt=${require_custom_prompt}`;
+    let url = `${API_ENDPOINT_SEARCH}?excludetopics&first=${first}&page=${page}&namespace=*&${searchTerm}include_forks=${include_forks}&nsfw=${nsfw}&nsfw_only=false&require_custom_prompt=${require_custom_prompt}&require_example_dialogues=false&require_images=${require_images}&require_expressions=false&nsfl=true&asc=${asc}&min_ai_rating=0&min_tokens=50&max_tokens=100000&chub=true&require_lore=false&exclude_mine=true&require_lore_embedded=false&require_lore_linked=false&sort=${sort}&min_tags=2&topics&inclusive_or=false&recommended_verified=false&require_alternate_greetings=false&count=false`;
 
     //truncate include and exclude tags to 100 characters
     includeTags = includeTags.filter(tag => tag.length > 0);
     if (includeTags && includeTags.length > 0) {
         //includeTags = makeTagPermutations(includeTags);
         includeTags = includeTags.join(',').slice(0, 100);
-        url += `&tags=${encodeURIComponent(includeTags)}`;
+        url += `&topics=${encodeURIComponent(includeTags)}`;
     }
     //remove tags that contain no characters
     excludeTags = excludeTags.filter(tag => tag.length > 0);
     if (excludeTags && excludeTags.length > 0) {
         //excludeTags = makeTagPermutations(excludeTags);
         excludeTags = excludeTags.join(',').slice(0, 100);
-        url += `&exclude_tags=${encodeURIComponent(excludeTags)}`;
+        url += `&excludetopics=${encodeURIComponent(excludeTags)}`;
     }
 
     let searchResponse = await fetch(url);
@@ -173,21 +173,39 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     // Clear previous search results
     chubCharacters = [];
 
-    if (searchData.nodes.length === 0) {
+    // Handle new response structure with data.nodes
+    const nodes = searchData.data ? searchData.data.nodes : searchData.nodes;
+    
+    if (!nodes || nodes.length === 0) {
         return chubCharacters;
     }
-    let charactersPromises = searchData.nodes.map(node => getCharacter(node.fullPath));
+    let charactersPromises = nodes.map(node => getCharacter(node.fullPath));
     let characterBlobs = await Promise.all(charactersPromises);
 
     characterBlobs.forEach((character, i) => {
         let imageUrl = URL.createObjectURL(character);
         chubCharacters.push({
             url: imageUrl,
-            description: searchData.nodes[i].tagline || "Description here...",
-            name: searchData.nodes[i].name,
-            fullPath: searchData.nodes[i].fullPath,
-            tags: searchData.nodes[i].topics,
-            author: searchData.nodes[i].fullPath.split('/')[0],
+            description: nodes[i].tagline || nodes[i].description || "Description here...",
+            name: nodes[i].name,
+            fullPath: nodes[i].fullPath,
+            tags: nodes[i].topics,
+            author: nodes[i].fullPath.split('/')[0],
+            starCount: nodes[i].starCount || 0,
+            rating: nodes[i].rating || 0,
+            ratingCount: nodes[i].ratingCount || 0,
+            nTokens: nodes[i].nTokens || 0,
+            forksCount: nodes[i].forksCount || 0,
+            nChats: nodes[i].nChats || 0,
+            nMessages: nodes[i].nMessages || 0,
+            createdAt: nodes[i].createdAt,
+            lastActivityAt: nodes[i].lastActivityAt,
+            avatar_url: nodes[i].avatar_url,
+            max_res_url: nodes[i].max_res_url,
+            verified: nodes[i].verified || false,
+            recommended: nodes[i].recommended || false,
+            nsfw_image: nodes[i].nsfw_image || false,
+            hasGallery: nodes[i].hasGallery || false
         });
     });
 
@@ -250,17 +268,32 @@ async function executeCharacterSearch(options) {
  * @returns {string} - Returns an HTML string representation of the character list item.
  */
 function generateCharacterListItem(character, index) {
+    const ratingStars = character.rating ? '★'.repeat(Math.floor(character.rating)) + '☆'.repeat(5 - Math.floor(character.rating)) : '';
+    const ratingText = character.ratingCount > 0 ? `${ratingStars} (${character.ratingCount})` : 'No rating';
+    const tokenText = character.nTokens ? `${character.nTokens} tokens` : '';
+    const starText = character.starCount ? `⭐ ${character.starCount}` : '';
+    const chatText = character.nChats ? `💬 ${character.nChats}` : '';
+    const forkText = character.forksCount ? `🍴 ${character.forksCount}` : '';
+    
     return `
         <div class="character-list-item" data-index="${index}">
             <img class="thumbnail" src="${character.url}">
             <div class="info">
-                
-                <a href="https://chub.ai/characters/${character.fullPath}" target="_blank"><div class="name">${character.name || "Default Name"}</a>
-                <a href="https://chub.ai/users/${character.author}" target="_blank">
-                 <span class="author">by ${character.author}</span>
-                </a></div>
+                <div class="character-header">
+                    <a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name">${character.name || "Default Name"}</a>
+                    <a href="https://chub.ai/users/${character.author}" target="_blank" class="author">by ${character.author}</a>
+                </div>
+                <div class="character-stats">
+                    <span class="rating">${ratingText}</span>
+                    ${starText ? `<span class="stars">${starText}</span>` : ''}
+                    ${tokenText ? `<span class="tokens">${tokenText}</span>` : ''}
+                    ${chatText ? `<span class="chats">${chatText}</span>` : ''}
+                    ${forkText ? `<span class="forks">${forkText}</span>` : ''}
+                </div>
                 <div class="description">${character.description}</div>
                 <div class="tags">${character.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+                ${character.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
+                ${character.recommended ? '<span class="recommended-badge">⭐ Recommended</span>' : ''}
             </div>
             <div data-path="${character.fullPath}" class="menu_button download-btn fa-solid fa-cloud-arrow-down faSmallFontSquareFix"></div>
         </div>

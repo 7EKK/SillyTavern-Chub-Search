@@ -66,7 +66,51 @@ body img.thumbnail {
 .character-list-item .info .author {
     font-size: 0.8em; /* This makes the author text 80% of its original size. Adjust as needed. */
     color: var(--SmartThemeEmColor)
+}
 
+.character-list-item .info .character-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 5px;
+}
+
+.character-list-item .info .character-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-size: 0.8em;
+    color: var(--SmartThemeEmColor);
+}
+
+.character-list-item .info .character-stats span {
+    background-color: var(--SmartThemeBorderColor);
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.character-list-item .info .rating {
+    color: #ffa500;
+    font-weight: bold;
+}
+
+.character-list-item .info .verified-badge {
+    background-color: #4CAF50;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    margin-left: 5px;
+}
+
+.character-list-item .info .recommended-badge {
+    background-color: #2196F3;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    margin-left: 5px;
 }
 
 .page-buttons {
