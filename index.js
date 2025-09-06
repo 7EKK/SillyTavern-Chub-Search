@@ -163,11 +163,15 @@ async function loadSettings() {
 }
 
 /**
- * Saves the current settings to extension_settings.chub
+ * Saves the current settings to extension_settings.chub using SillyTavern's standard method
  */
 function saveSettings() {
-    // Settings are automatically saved to extension_settings.chub
-    // This function can be used for additional save logic if needed
+    // Use SillyTavern's recommended method for persisting settings
+    if (typeof saveSettingsDebounced === 'function') {
+        saveSettingsDebounced();
+    } else {
+        console.warn('saveSettingsDebounced not available, using fallback');
+    }
     console.log('Settings saved:', extension_settings.chub);
 }
 
@@ -612,6 +616,14 @@ async function displayCharactersInListViewPopup() {
                     <label for="enableTranslationCheckbox">翻译:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
                 </div>
+                <div class="flex-container flex-no-wrap flex-align-center">
+                    <label for="translateEndpointInput">翻译API地址:</label>
+                    <input type="text" id="translateEndpointInput" class="text_pole flex1" placeholder="http://localhost:7009/translate">
+                </div>
+                <div class="flex-container flex-no-wrap flex-align-center">
+                    <label for="translateKeyInput">翻译API密钥:</label>
+                    <input type="text" id="translateKeyInput" class="text_pole flex1" placeholder="sk-*">
+                </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
             </div>
 
@@ -631,6 +643,8 @@ async function displayCharactersInListViewPopup() {
     // Initialize settings UI
     document.getElementById('nsfwCheckbox').checked = extension_settings.chub.nsfw || false;
     document.getElementById('enableTranslationCheckbox').checked = extension_settings.chub.enableTranslation || false;
+    document.getElementById('translateEndpointInput').value = extension_settings.chub.translateApiEndpoint || TRANSLATE_API_ENDPOINT;
+    document.getElementById('translateKeyInput').value = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
 
     let clone = null;  // Store reference to the cloned image
 
@@ -737,6 +751,14 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('enableTranslationCheckbox').addEventListener('change', function(e) {
         extension_settings.chub.enableTranslation = e.target.checked;
         // Save settings
+        saveSettings();
+    });
+    document.getElementById('translateEndpointInput').addEventListener('change', function(e) {
+        extension_settings.chub.translateApiEndpoint = e.target.value;
+        saveSettings();
+    });
+    document.getElementById('translateKeyInput').addEventListener('change', function(e) {
+        extension_settings.chub.translateApiKey = e.target.value;
         saveSettings();
     });
 
