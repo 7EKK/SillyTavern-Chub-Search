@@ -469,7 +469,12 @@ async function displayCharactersInListViewPopup() {
         let page = document.getElementById('pageNumber').value;
 
         // If the page number is not being changed, use page 1
-        if (e.target.id !== 'pageNumber' && e.target.id !== 'pageUpButton' && e.target.id !== 'pageDownButton') {
+        // Check if the target is a button or if its parent is a button (for icon clicks)
+        const isPageButton = e.target.id === 'pageUpButton' || e.target.id === 'pageDownButton' || 
+                            e.target.closest('#pageUpButton') || e.target.closest('#pageDownButton');
+        const isPageNumberInput = e.target.id === 'pageNumber';
+        
+        if (!isPageButton && !isPageNumberInput) {
             page = 1;
             // set page box to 1
             document.getElementById('pageNumber').value = 1;
