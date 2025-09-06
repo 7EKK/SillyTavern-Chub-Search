@@ -14,10 +14,15 @@ const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 // Endpoint for API call
 const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
+const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
+const TRANSLATE_API_KEY = "sk-*";
 
 const defaultSettings = {
     findCount: 10,
     nsfw: false,
+    enableTranslation: false,
+    translateApiEndpoint: "http://localhost:7009/translate",
+    translateApiKey: "sk-*",
 };
 
 let chubCharacters = [];
@@ -25,6 +30,114 @@ let characterListContainer = null;  // A global variable to hold the reference
 let popupState = null;
 let savedPopupContent = null;
 
+
+/**
+ * Detects if a string contains Chinese characters
+ * @param {string} text - The text to check
+ * @returns {boolean} - True if contains Chinese characters
+ */
+function containsChinese(text) {
+    return /[\u4e00-\u9fff]/.test(text);
+}
+
+/**
+ * Translates Chinese text to English using the translation API
+ * @param {string} text - The text to translate
+ * @returns {Promise<string>} - The translated text
+ */
+async function translateToEnglish(text) {
+    // Check if translation is enabled
+    if (!extension_settings.chub.enableTranslation) {
+        return text;
+    }
+
+    const apiEndpoint = extension_settings.chub.translateApiEndpoint || TRANSLATE_API_ENDPOINT;
+    const apiKey = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
+
+    try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                texts: [text],
+                target: 'zh-CN'
+            })
+        });
+
+        if (!response.ok) {
+            console.warn('Translation API failed:', response.status, response.statusText);
+            return text; // Return original text if translation fails
+        }
+
+        const data = await response.json();
+        return data.translations && data.translations[0] ? data.translations[0] : text;
+    } catch (error) {
+        console.warn('Translation error:', error);
+        return text; // Return original text if translation fails
+    }
+}
+
+/**
+ * Batch translates multiple texts to English using the translation API
+ * @param {string[]} texts - Array of texts to translate
+ * @returns {Promise<Object>} - Object mapping original text to translated text
+ */
+async function batchTranslateToEnglish(texts) {
+    // Check if translation is enabled
+    if (!extension_settings.chub.enableTranslation) {
+        const result = {};
+        texts.forEach(text => result[text] = text);
+        return result;
+    }
+
+    const apiEndpoint = extension_settings.chub.translateApiEndpoint || TRANSLATE_API_ENDPOINT;
+    const apiKey = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
+
+    try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                texts: texts,
+                target: 'zh-CN'
+            })
+        });
+
+        if (!response.ok) {
+            console.warn('Batch translation API failed:', response.status, response.statusText);
+            // Return original texts if translation fails
+            const result = {};
+            texts.forEach(text => result[text] = text);
+            return result;
+        }
+
+        const data = await response.json();
+        const result = {};
+        
+        if (data.translations && Array.isArray(data.translations)) {
+            texts.forEach((text, index) => {
+                result[text] = data.translations[index] || text;
+            });
+        } else {
+            // Fallback: return original texts
+            texts.forEach(text => result[text] = text);
+        }
+        
+        return result;
+    } catch (error) {
+        console.warn('Batch translation error:', error);
+        // Return original texts if translation fails
+        const result = {};
+        texts.forEach(text => result[text] = text);
+        return result;
+    }
+}
 
 /**
  * Asynchronously loads settings from `extension_settings.chub`, 
@@ -47,7 +160,15 @@ async function loadSettings() {
             extension_settings.chub[key] = value;
         }
     }
+}
 
+/**
+ * Saves the current settings to extension_settings.chub
+ */
+function saveSettings() {
+    // Settings are automatically saved to extension_settings.chub
+    // This function can be used for additional save logic if needed
+    console.log('Settings saved:', extension_settings.chub);
 }
 
 /**
@@ -144,7 +265,16 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     nsfw = nsfw || extension_settings.chub.nsfw;  // Default to extension settings if not provided
     let require_images = false;
     let require_custom_prompt = false;
-    searchTerm = searchTerm ? `search=${encodeURIComponent(searchTerm)}&` : '';
+    
+    // Translate Chinese search terms to English
+    let processedSearchTerm = searchTerm;
+    if (searchTerm && containsChinese(searchTerm) && extension_settings.chub.enableTranslation) {
+        console.log('Detected Chinese in search term, translating...');
+        processedSearchTerm = await translateToEnglish(searchTerm);
+        console.log(`Translated "${searchTerm}" to "${processedSearchTerm}"`);
+    }
+    
+    searchTerm = processedSearchTerm ? `search=${encodeURIComponent(processedSearchTerm)}&` : '';
     sort = sort || 'default';
 
     // Construct the URL with the search parameters, if any
@@ -182,31 +312,107 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     let charactersPromises = nodes.map(node => getCharacter(node.fullPath));
     let characterBlobs = await Promise.all(charactersPromises);
 
-    characterBlobs.forEach((character, i) => {
-        let imageUrl = URL.createObjectURL(character);
-        chubCharacters.push({
-            url: imageUrl,
-            description: nodes[i].tagline || nodes[i].description || "Description here...",
-            name: nodes[i].name,
-            fullPath: nodes[i].fullPath,
-            tags: nodes[i].topics,
-            author: nodes[i].fullPath.split('/')[0],
-            starCount: nodes[i].starCount || 0,
-            rating: nodes[i].rating || 0,
-            ratingCount: nodes[i].ratingCount || 0,
-            nTokens: nodes[i].nTokens || 0,
-            forksCount: nodes[i].forksCount || 0,
-            nChats: nodes[i].nChats || 0,
-            nMessages: nodes[i].nMessages || 0,
-            createdAt: nodes[i].createdAt,
-            lastActivityAt: nodes[i].lastActivityAt,
-            avatar_url: nodes[i].avatar_url,
-            max_res_url: nodes[i].max_res_url,
-            verified: nodes[i].verified || false,
-            recommended: nodes[i].recommended || false,
-            nsfw_image: nodes[i].nsfw_image || false,
-            hasGallery: nodes[i].hasGallery || false
-        });
+    // First, collect all text that needs translation
+    const textsToTranslate = new Set();
+    const textMapping = new Map(); // Map original text to its usage info
+    
+    nodes.forEach((node, i) => {
+        // Collect names
+        if (node.name && !containsChinese(node.name)) {
+            textsToTranslate.add(node.name);
+            textMapping.set(node.name, { type: 'name', index: i });
+        }
+        
+        // Collect descriptions
+        const description = node.tagline || node.description || "Description here...";
+        if (description && !containsChinese(description)) {
+            textsToTranslate.add(description);
+            textMapping.set(description, { type: 'description', index: i });
+        }
+        
+        // Collect tags
+        if (node.topics && Array.isArray(node.topics)) {
+            node.topics.forEach(tag => {
+                if (tag && !containsChinese(tag)) {
+                    textsToTranslate.add(tag);
+                    if (!textMapping.has(tag)) {
+                        textMapping.set(tag, { type: 'tag', indices: [] });
+                    }
+                    textMapping.get(tag).indices.push(i);
+                }
+            });
+        }
+    });
+
+    // Batch translate all collected texts
+    let translationResults = {};
+    if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
+        console.log(`Translating ${textsToTranslate.size} unique texts...`);
+        const textsArray = Array.from(textsToTranslate);
+        translationResults = await batchTranslateToEnglish(textsArray);
+    }
+
+    // Build final character list with translations
+    chubCharacters = nodes.map((node, i) => {
+        const originalName = node.name;
+        const originalDescription = node.tagline || node.description || "Description here...";
+        const originalTags = node.topics || [];
+
+        const character = {
+            url: URL.createObjectURL(characterBlobs[i]),
+            description: originalDescription,
+            name: originalName,
+            fullPath: node.fullPath,
+            tags: originalTags,
+            author: node.fullPath.split('/')[0],
+            starCount: node.starCount || 0,
+            rating: node.rating || 0,
+            ratingCount: node.ratingCount || 0,
+            nTokens: node.nTokens || 0,
+            forksCount: node.forksCount || 0,
+            nChats: node.nChats || 0,
+            nMessages: node.nMessages || 0,
+            createdAt: node.createdAt,
+            lastActivityAt: node.lastActivityAt,
+            avatar_url: node.avatar_url,
+            max_res_url: node.max_res_url,
+            verified: node.verified || false,
+            recommended: node.recommended || false,
+            nsfw_image: node.nsfw_image || false,
+            hasGallery: node.hasGallery || false,
+            // Store original texts for hover display
+            originalName: originalName,
+            originalDescription: originalDescription,
+            originalTags: originalTags
+        };
+
+        // Apply translations and store translation info
+        if (translationResults[character.name]) {
+            character.nameTranslated = true;
+            character.name = translationResults[character.name];
+        }
+        if (translationResults[character.description]) {
+            character.descriptionTranslated = true;
+            character.description = translationResults[character.description];
+        }
+        if (character.tags && Array.isArray(character.tags)) {
+            character.tags = character.tags.map(tag => {
+                if (translationResults[tag]) {
+                    return {
+                        text: translationResults[tag],
+                        original: tag,
+                        translated: true
+                    };
+                }
+                return {
+                    text: tag,
+                    original: tag,
+                    translated: false
+                };
+            });
+        }
+
+        return character;
     });
 
     return chubCharacters;
@@ -275,12 +481,32 @@ function generateCharacterListItem(character, index) {
     const chatText = character.nChats ? `💬 ${character.nChats}` : '';
     const forkText = character.forksCount ? `🍴 ${character.forksCount}` : '';
     
+    // Generate name with hover tooltip for original text
+    const nameElement = character.nameTranslated 
+        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name" title="原文: ${character.originalName}">${character.name || "Default Name"}</a>`
+        : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name">${character.name || "Default Name"}</a>`;
+    
+    // Generate description with hover tooltip for original text
+    const descriptionElement = character.descriptionTranslated
+        ? `<div class="description" title="原文: ${character.originalDescription}">${character.description}</div>`
+        : `<div class="description">${character.description}</div>`;
+    
+    // Generate tags with hover tooltips for original text
+    const tagsElement = character.tags.map(tag => {
+        if (typeof tag === 'object' && tag.translated) {
+            return `<span class="tag" title="原文: ${tag.original}">${tag.text}</span>`;
+        } else if (typeof tag === 'string') {
+            return `<span class="tag">${tag}</span>`;
+        }
+        return `<span class="tag">${tag}</span>`;
+    }).join('');
+    
     return `
         <div class="character-list-item" data-index="${index}">
             <img class="thumbnail" src="${character.url}">
             <div class="info">
                 <div class="character-header">
-                    <a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name">${character.name || "Default Name"}</a>
+                    ${nameElement}
                     <a href="https://chub.ai/users/${character.author}" target="_blank" class="author">by ${character.author}</a>
                 </div>
                 <div class="character-stats">
@@ -290,8 +516,8 @@ function generateCharacterListItem(character, index) {
                     ${chatText ? `<span class="chats">${chatText}</span>` : ''}
                     ${forkText ? `<span class="forks">${forkText}</span>` : ''}
                 </div>
-                <div class="description">${character.description}</div>
-                <div class="tags">${character.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+                ${descriptionElement}
+                <div class="tags">${tagsElement}</div>
                 ${character.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
                 ${character.recommended ? '<span class="recommended-badge">⭐ Recommended</span>' : ''}
             </div>
@@ -382,6 +608,10 @@ async function displayCharactersInListViewPopup() {
                     <label for="nsfwCheckbox">NSFW:</label>
                     <input type="checkbox" id="nsfwCheckbox">
                 </div>
+                <div class="flex-container flex-no-wrap flex-align-center">
+                    <label for="enableTranslationCheckbox">翻译:</label>
+                    <input type="checkbox" id="enableTranslationCheckbox">
+                </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
             </div>
 
@@ -397,6 +627,10 @@ async function displayCharactersInListViewPopup() {
         });
 
     characterListContainer = document.querySelector('.character-list-popup');   
+
+    // Initialize settings UI
+    document.getElementById('nsfwCheckbox').checked = extension_settings.chub.nsfw || false;
+    document.getElementById('enableTranslationCheckbox').checked = extension_settings.chub.enableTranslation || false;
 
     let clone = null;  // Store reference to the cloned image
 
@@ -496,7 +730,15 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('includeTags').addEventListener('keyup', handleSearch);
     document.getElementById('excludeTags').addEventListener('keyup', handleSearch);
     document.getElementById('sortOrder').addEventListener('change', handleSearch);
-    document.getElementById('nsfwCheckbox').addEventListener('change', handleSearch);
+    document.getElementById('nsfwCheckbox').addEventListener('change', function(e) {
+        extension_settings.chub.nsfw = e.target.checked;
+        handleSearch(e);
+    });
+    document.getElementById('enableTranslationCheckbox').addEventListener('change', function(e) {
+        extension_settings.chub.enableTranslation = e.target.checked;
+        // Save settings
+        saveSettings();
+    });
 
     // when the page number is finished being changed, search again
     document.getElementById('pageNumber').addEventListener('change', handleSearch);

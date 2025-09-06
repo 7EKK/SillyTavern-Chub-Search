@@ -113,6 +113,27 @@ body img.thumbnail {
     margin-left: 5px;
 }
 
+/* Hover tooltip styles for translated content */
+.character-list-item .name[title],
+.character-list-item .description[title],
+.character-list-item .tag[title] {
+    position: relative;
+    cursor: help;
+}
+
+.character-list-item .name[title]:hover,
+.character-list-item .description[title]:hover,
+.character-list-item .tag[title]:hover {
+    background-color: rgba(255, 255, 0, 0.1);
+    border-radius: 2px;
+}
+
+/* Style for translated tags to make them more visible */
+.character-list-item .tag[title] {
+    border: 1px dashed rgba(255, 165, 0, 0.3);
+    background-color: rgba(255, 165, 0, 0.05);
+}
+
 .page-buttons {
     align-content: center;
     align-items: center;
