@@ -775,7 +775,9 @@ async function displayCharactersInListViewPopup() {
 
     characterListContainer.addEventListener('click', async function (event) {
         if (event.target.classList.contains('download-btn')) {
-            downloadCharacter(event.target.getAttribute('data-path'));
+            // downloadCharacter(event.target.getAttribute('data-path'));
+            $('#external_import_button').click();
+            $('dialog textarea').val(event.target.getAttribute('data-path'));
         } else if (event.target.classList.contains('tag')) {
             // Handle tag click - toggle tag in include tags
             // Use data-value (English) for data processing, not display text (Chinese)
