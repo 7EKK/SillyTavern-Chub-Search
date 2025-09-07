@@ -18,7 +18,7 @@ const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
 const TRANSLATE_API_KEY = "sk-*";
 
 const defaultSettings = {
-    findCount: 30,
+    findCount: 20,
     nsfw: false,
     enableTranslation: false,
     translateApiEndpoint: "http://localhost:7009/translate",
