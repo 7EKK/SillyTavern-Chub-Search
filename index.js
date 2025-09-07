@@ -228,12 +228,14 @@ async function downloadCharacter(input) {
         formData.append('avatar', imageBlob, 'character.png');
         formData.append('file_type', 'png');
 
+        // Get headers but exclude Content-Type for FormData
+        const headers = { ...getRequestHeaders() };
+        delete headers['Content-Type'];
+        delete headers['content-type'];
+        
         const importResponse = await fetch('/api/characters/import', {
             method: 'POST',
-            headers: {
-                ...getRequestHeaders(),
-                'Accept': 'application/json'
-            },
+            headers: headers,
             body: formData,
         });
 
