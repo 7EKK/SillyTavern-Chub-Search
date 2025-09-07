@@ -230,7 +230,7 @@ async function applyTranslationsToCharacters(characters) {
             
             // Apply translations to tagNames
             const translatedTagNames = tagNames.map(tag => translationResults[tag] || tag);
-            
+            console.log('translatedTagNames', translatedTagNames);
             // Reconstruct originalTags with translated names
             character.originalTags = [...tagTexts, ...translatedTagNames, ...tagValues];
         }
