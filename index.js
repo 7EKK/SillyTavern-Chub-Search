@@ -412,18 +412,22 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             character.description = translationResults[character.description];
         }
         if (originalTags && Array.isArray(originalTags)) {
-            character.tags = originalTags.map(tag => {
+            // Remove duplicates and process tags
+            const uniqueTags = [...new Set(originalTags)];
+            character.tags = uniqueTags.map(tag => {
                 if (translationResults[tag]) {
                     return {
-                        text: translationResults[tag],
-                        original: tag,
-                        translated: true
+                        text: translationResults[tag], // Chinese for display
+                        original: tag, // English for data processing
+                        translated: true,
+                        dataValue: tag // English for search/comparison
                     };
                 }
                 return {
-                    text: tag,
-                    original: tag,
-                    translated: false
+                    text: tag, // English for display (no translation available)
+                    original: tag, // English for data processing
+                    translated: false,
+                    dataValue: tag // English for search/comparison
                 };
             });
         } else {
@@ -511,29 +515,39 @@ function generateCharacterListItem(character, index, selectedTags = []) {
         : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description">${character.description}</a>`;
     
     // Generate tags with hover tooltips for original text
+    const processedTags = new Set(); // Track processed tags to avoid duplicates
     const tagsElement = character.tags.map(tag => {
-        let tagText, tagOriginal;
+        let tagText, tagOriginal, tagDataValue;
         
         if (typeof tag === 'object' && tag !== null) {
-            tagText = tag.text || tag.original || String(tag);
-            tagOriginal = tag.original || tag.text || String(tag);
+            tagText = tag.text || tag.original || String(tag); // Chinese for display
+            tagOriginal = tag.original || tag.text || String(tag); // English for tooltip
+            tagDataValue = tag.dataValue || tag.original || String(tag); // English for comparison
         } else {
             tagText = String(tag);
             tagOriginal = String(tag);
+            tagDataValue = String(tag);
         }
         
-        const isSelected = selectedTags.includes(tagText);
+        // Skip if we've already processed this tag text
+        if (processedTags.has(tagText)) {
+            return '';
+        }
+        processedTags.add(tagText);
+        
+        // Use dataValue (English) for comparison with selectedTags
+        const isSelected = selectedTags.includes(tagDataValue);
         const selectedClass = isSelected ? ' tag-selected' : '';
         
         if (typeof tag === 'object' && tag.translated) {
-            return `<span class="tag${selectedClass}" title="${tagOriginal}">${tagText}</span>`;
+            return `<span class="tag${selectedClass}" title="${tagOriginal}" data-value="${tagDataValue}">${tagText}</span>`;
         } else if (typeof tag === 'string') {
-            return `<span class="tag${selectedClass}">${tagText}</span>`;
+            return `<span class="tag${selectedClass}" data-value="${tagDataValue}">${tagText}</span>`;
         } else {
             // Handle other types (numbers, etc.)
-            return `<span class="tag${selectedClass}">${tagText}</span>`;
+            return `<span class="tag${selectedClass}" data-value="${tagDataValue}">${tagText}</span>`;
         }
-    }).join('');
+    }).filter(html => html !== '').join('');
     
     return `
         <div class="character-list-item" data-index="${index}">
@@ -728,23 +742,24 @@ async function displayCharactersInListViewPopup() {
             downloadCharacter(event.target.getAttribute('data-path'));
         } else if (event.target.classList.contains('tag')) {
             // Handle tag click - toggle tag in include tags
-            const tagText = event.target.textContent.trim();
+            // Use data-value (English) for data processing, not display text (Chinese)
+            const tagValue = event.target.getAttribute('data-value') || event.target.textContent.trim();
             const includeTagsInput = document.getElementById('includeTags');
             const currentValue = includeTagsInput.value.trim();
             
             if (currentValue === '') {
                 // If no tags, add this tag
-                includeTagsInput.value = tagText;
+                includeTagsInput.value = tagValue;
             } else {
                 // Check if tag already exists
                 const existingTags = currentValue.split(',').map(tag => tag.trim());
-                if (existingTags.includes(tagText)) {
+                if (existingTags.includes(tagValue)) {
                     // Tag exists, remove it
-                    const updatedTags = existingTags.filter(tag => tag !== tagText);
+                    const updatedTags = existingTags.filter(tag => tag !== tagValue);
                     includeTagsInput.value = updatedTags.join(', ');
                 } else {
                     // Tag doesn't exist, add it
-                    includeTagsInput.value = currentValue + ', ' + tagText;
+                    includeTagsInput.value = currentValue + ', ' + tagValue;
                 }
             }
             
