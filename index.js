@@ -41,11 +41,12 @@ function containsChinese(text) {
 }
 
 /**
- * Translates Chinese text to English using the translation API
+ * Translates text using the translation API
  * @param {string} text - The text to translate
+ * @param {string} targetLanguage - The target language code (e.g., 'en', 'zh-CN')
  * @returns {Promise<string>} - The translated text
  */
-async function translateToEnglish(text) {
+async function translateText(text, targetLanguage = 'zh-CN') {
     // Check if translation is enabled
     if (!extension_settings.chub.enableTranslation) {
         return text;
@@ -63,7 +64,7 @@ async function translateToEnglish(text) {
             },
             body: JSON.stringify({
                 texts: [text],
-                target: 'zh-CN'
+                target: targetLanguage
             })
         });
 
@@ -85,11 +86,20 @@ async function translateToEnglish(text) {
 }
 
 /**
- * Batch translates multiple texts to English using the translation API
+ * Translates Chinese text to English using the translation API
+ * @param {string} text - The text to translate
+ * @returns {Promise<string>} - The translated text
+ */
+async function translateToEnglish(text) {
+    return await translateText(text, 'en');
+}
+
+/**
+ * Batch translates multiple texts to Chinese using the translation API
  * @param {string[]} texts - Array of texts to translate
  * @returns {Promise<Object>} - Object mapping original text to translated text
  */
-async function batchTranslateToEnglish(texts) {
+async function batchTranslateToChinese(texts) {
     // Check if translation is enabled
     if (!extension_settings.chub.enableTranslation) {
         const result = {};
@@ -366,7 +376,7 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
         console.log(`Translating ${textsToTranslate.size} unique texts...`);
         const textsArray = Array.from(textsToTranslate);
-        translationResults = await batchTranslateToEnglish(textsArray);
+        translationResults = await batchTranslateToChinese(textsArray);
     }
 
     // Build final character list with translations
