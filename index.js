@@ -1196,6 +1196,10 @@ async function displayCharactersInListViewPopup() {
         // Update sort options based on selected API
         updateSortOptions(e.target.value);
         
+        // Clear tag condition inputs when switching API
+        document.getElementById('includeTags').value = '';
+        document.getElementById('excludeTags').value = '';
+        
         // Update API display
         const apiDisplay = document.getElementById('currentApiDisplay');
         if (apiDisplay) {
