@@ -783,7 +783,7 @@ async function executeCharacterSearch(options) {
  */
 function generateCharacterListItem(character, index, selectedTags = []) {
     const ratingStars = character.rating ? '★'.repeat(Math.floor(character.rating)) + '☆'.repeat(5 - Math.floor(character.rating)) : '';
-    const ratingText = character.ratingCount > 0 ? `${ratingStars} (${character.ratingCount})` : 'No rating';
+    const ratingText = character.ratingCount > 0 ? `${ratingStars} (${character.ratingCount})` : '';
     const tokenText = character.nTokens ? `${character.nTokens} tokens` : '';
     const starText = character.starCount ? `⭐ ${character.starCount}` : '';
     const chatText = character.nChats ? `💬 ${character.nChats}` : '';
@@ -843,7 +843,7 @@ function generateCharacterListItem(character, index, selectedTags = []) {
                     <a href="${character.authorUrl}" target="_blank" class="author">by ${character.author}</a>
                 </div>
                 <div class="character-stats">
-                    <span class="rating">${ratingText}</span>
+                    ${ratingText ? `<span class="rating">${ratingText}</span>` : ''}
                     ${starText ? `<span class="stars">${starText}</span>` : ''}
                     ${tokenText ? `<span class="tokens">${tokenText}</span>` : ''}
                     ${chatText ? `<span class="chats">${chatText}</span>` : ''}
