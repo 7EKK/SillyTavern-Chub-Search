@@ -311,7 +311,9 @@ function makeTagPermutations(tags) {
 async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags, nsfw, sort, page=1 }) {
     const mode = nsfw ? 'nsfw' : 'sfw';
     const search = searchTerm ? encodeURIComponent(searchTerm) : '';
-    const customTags = includeTags && includeTags.length > 0 ? includeTags.map(tag => `custom_tags[]=${encodeURIComponent(tag)}`).join('&') : '';
+    // Only add custom_tags[] if there are valid (non-empty) tags
+    const validTags = includeTags ? includeTags.filter(tag => tag && tag.trim().length > 0) : [];
+    const customTags = validTags.length > 0 ? validTags.map(tag => `custom_tags[]=${encodeURIComponent(tag.trim())}`).join('&') : '';
     
     // Map sort options to JanitorAI format
     const sortMap = {
