@@ -31,10 +31,57 @@ const defaultSettings = {
     apiProvider: "chub", // "chub" or "janitor"
 };
 
+// 不同API的排序选项映射
+const sortOptions = {
+    chub: {
+        "download_count": "下载次数",
+        "rating": "评分",
+        "created_at": "创建日期",
+        "name": "名称",
+        "n_tokens": "Token数量",
+        "random": "随机"
+    },
+    janitor: {
+        "popular": "热门",
+        "latest": "最新",
+        "trending": "趋势",
+        "trending24": "24小时趋势",
+        "relevance": "相关性"
+    }
+};
+
 let chubCharacters = [];
 let characterListContainer = null;  // A global variable to hold the reference
 let popupState = null;
 let savedPopupContent = null;
+
+/**
+ * Updates the sort options based on the selected API provider
+ * @param {string} apiProvider - The API provider ("chub" or "janitor")
+ */
+function updateSortOptions(apiProvider) {
+    const sortSelect = document.getElementById('sortOrder');
+    if (!sortSelect) return;
+    
+    const currentValue = sortSelect.value;
+    const options = sortOptions[apiProvider] || sortOptions.chub;
+    
+    // Generate new options HTML
+    const optionsHtml = Object.keys(options).map(key => 
+        `<option value="${key}">${options[key]}</option>`
+    ).join('');
+    
+    // Update the select element
+    sortSelect.innerHTML = optionsHtml;
+    
+    // Try to maintain the current selection if it exists in the new options
+    if (currentValue && options[currentValue]) {
+        sortSelect.value = currentValue;
+    } else {
+        // Set to first available option if current selection is not available
+        sortSelect.value = Object.keys(options)[0];
+    }
+}
 
 
 /**
@@ -890,25 +937,9 @@ async function displayCharactersInListViewPopup() {
         return;
     }
 
-    const readableOptions = {
-        "download_count": "下载次数",
-        "id": "ID",
-        "rating": "评分",
-        "default": "默认",
-        "rating_count": "评分数量",
-        "last_activity_at": "最后活动",
-        "trending_downloads": "热门下载",
-        "created_at": "创建日期",
-        "name": "名称",
-        "n_tokens": "Token数量",
-        "random": "随机",
-        // JanitorAI specific options
-        "popular": "热门",
-        "latest": "最新",
-        "trending": "趋势",
-        "trending24": "24小时趋势",
-        "relevance": "相关性"
-    };
+    // Get current API provider for sort options
+    const currentApiProvider = extension_settings.chub.apiProvider || 'chub';
+    const readableOptions = sortOptions[currentApiProvider] || sortOptions.chub;
 
     // TODO: This should be a template
     const listLayout = popupState ? popupState : `
@@ -1012,6 +1043,9 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('translateKeyInput').value = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
     document.getElementById('crawlEndpointInput').value = extension_settings.chub.crawlApiEndpoint || CRAWL_API_ENDPOINT;
     document.getElementById('crawlKeyInput').value = extension_settings.chub.crawlApiKey || CRAWL_API_KEY;
+    
+    // Initialize sort options based on current API provider
+    updateSortOptions(extension_settings.chub.apiProvider || 'chub');
     
     // Initialize API display
     const apiDisplay = document.getElementById('currentApiDisplay');
@@ -1156,6 +1190,9 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('apiProviderSelect').addEventListener('change', function(e) {
         extension_settings.chub.apiProvider = e.target.value;
         saveSettings();
+        
+        // Update sort options based on selected API
+        updateSortOptions(e.target.value);
         
         // Update API display
         const apiDisplay = document.getElementById('currentApiDisplay');
