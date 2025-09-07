@@ -454,9 +454,9 @@ function makeTagPermutations(tags) {
 async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags, nsfw, sort, page=1 }) {
     const mode = nsfw ? 'nsfw' : 'sfw';
     const search = searchTerm ? encodeURIComponent(searchTerm) : '';
-    // Only add custom_tags[] if there are valid (non-empty) tags
+    // Only add tagIds if there are valid (non-empty) tags
     const validTags = includeTags ? includeTags.filter(tag => tag && tag.trim().length > 0) : [];
-    const customTags = validTags.length > 0 ? validTags.map(tag => `custom_tags[]=${encodeURIComponent(tag.trim())}`).join('&') : '';
+    const tagIds = validTags.length > 0 ? validTags.map(tag => `tag_id=${encodeURIComponent(tag.trim())}`).join('&') : '';
     
     // Map sort options to JanitorAI format
     const sortMap = {
@@ -475,7 +475,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
     
     let url = `${JANITOR_API_ENDPOINT}?page=${page}&mode=${mode}&sort=${janitorSort}`;
     if (search) url += `&search=${search}`;
-    if (customTags) url += `&${customTags}`;
+    if (tagIds) url += `&${tagIds}`;
     
     // Use crawl API to fetch JanitorAI data
     const crawlApiEndpoint = extension_settings.chub.crawlApiEndpoint || CRAWL_API_ENDPOINT;
@@ -535,7 +535,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
             const characters = data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
                 const tagObjects = char.tags || [];
-                const customTagIds = char.custom_tags || [];
+                const tagIds = char.tagIds || [];
                 
                 // Extract tag texts, names, and values directly
                 const tagTexts = tagObjects.map(tag => tag.name || tag.slug || `Tag ${tag.id}`).filter(Boolean);
@@ -543,7 +543,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                 const tagValues = tagObjects.map(tag => tag.id ? tag.id.toString() : (tag.name || tag.slug || `Tag ${tag.id}`)).filter(Boolean);
                 
                 // Add custom tag IDs to values
-                const allTagValues = [...tagValues, ...customTagIds.map(id => id.toString())];
+                const allTagValues = [...tagValues, ...tagIds.map(id => id.toString())];
                 
                 // Create avatar URL - JanitorAI uses relative paths
                 const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}?width=400` : '';
