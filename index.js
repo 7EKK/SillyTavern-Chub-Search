@@ -707,9 +707,9 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
         const originalTags = node.topics || [];
         
         // Extract tag texts, names, and values for CHub
-        const tagTexts = originalTags; // 原文
-        const tagNames = originalTags; // 译文（翻译后）
-        const tagValues = originalTags; // 值（用于搜索）
+        const tagTexts = [...originalTags]; // 原文
+        const tagNames = [...originalTags]; // 译文（翻译后）
+        const tagValues = [...originalTags]; // 值（用于搜索）
 
         const character = {
             url: URL.createObjectURL(characterBlobs[i]),
