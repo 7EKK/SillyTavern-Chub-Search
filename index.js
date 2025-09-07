@@ -537,7 +537,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
             const characters = data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
                 const tagNames = char.tags ? char.tags.map(tag => tag.name || tag.slug || tag).filter(Boolean) : [];
-                const customTags = char.custom_tags || [];
+                const customTags = char.tags ? char.tags.map(tag => tag.id || tag.slug || tag).filter(Boolean) : [];
                 const allTags = [...tagNames, ...customTags];
                 
                 // Create avatar URL - JanitorAI uses relative paths
@@ -549,7 +549,6 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                     name: char.name || 'Unknown Character',
                     fullPath: char.id || '',
                     fullUrl: char.id ? `https://janitorai.com/characters/${char.id}` : '',
-                    tags: allTags,
                     author: char.creator_name || 'Unknown',
                     authorUrl: char.creator_id ? `https://janitorai.com/profiles/${char.creator_id}` : '',
                     starCount: 0, // JanitorAI doesn't have star count
