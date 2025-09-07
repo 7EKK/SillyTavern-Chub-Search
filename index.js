@@ -407,7 +407,9 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             description: originalDescription,
             name: originalName,
             fullPath: node.fullPath,
+            fullUrl: `https://chub.ai/characters/${node.fullPath}`,
             author: node.fullPath.split('/')[0],
+            authorUrl: `https://chub.ai/users/${node.fullPath.split('/')[0]}`,
             starCount: node.starCount || 0,
             rating: node.rating || 0,
             ratingCount: node.ratingCount || 0,
@@ -533,13 +535,13 @@ function generateCharacterListItem(character, index, selectedTags = []) {
     
     // Generate name with hover tooltip for original text
     const nameElement = character.nameTranslated 
-        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name" title="${character.originalName}">${character.name || "Default Name"}</a>`
-        : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name">${character.name || "Default Name"}</a>`;
+        ? `<a href="${character.fullUrl}" target="_blank" class="name" title="${character.originalName}">${character.name || "Default Name"}</a>`
+        : `<a href="${character.fullUrl}" target="_blank" class="name">${character.name || "Default Name"}</a>`;
     
     // Generate description with hover tooltip for original text
     const descriptionElement = character.descriptionTranslated
-        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description" title="${character.description}">${character.description}</a>`
-        : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description">${character.description}</a>`;
+        ? `<a href="${character.fullUrl}" target="_blank" class="description" title="${character.description}">${character.description}</a>`
+        : `<a href="${character.fullUrl}" target="_blank" class="description">${character.description}</a>`;
     
     // Generate tags with hover tooltips for original text
     const processedTags = new Set(); // Track processed tags to avoid duplicates
@@ -582,7 +584,7 @@ function generateCharacterListItem(character, index, selectedTags = []) {
             <div class="info">
                 <div class="character-header">
                     ${nameElement}
-                    <a href="https://chub.ai/users/${character.author}" target="_blank" class="author">by ${character.author}</a>
+                    <a href="${character.authorUrl}" target="_blank" class="author">by ${character.author}</a>
                 </div>
                 <div class="character-stats">
                     <span class="rating">${ratingText}</span>
@@ -596,7 +598,7 @@ function generateCharacterListItem(character, index, selectedTags = []) {
                 ${character.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
                 ${character.recommended ? '<span class="recommended-badge">⭐ Recommended</span>' : ''}
             </div>
-            <div data-path="${character.fullPath}" class="menu_button download-btn fa-solid fa-cloud-arrow-down faSmallFontSquareFix"></div>
+            <div data-path="${character.fullUrl}" class="menu_button download-btn fa-solid fa-cloud-arrow-down faSmallFontSquareFix"></div>
         </div>
     `;
 }
