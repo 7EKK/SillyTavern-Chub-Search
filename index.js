@@ -180,13 +180,17 @@ async function applyTranslationsToCharacters(characters) {
             textMapping.set(character.description, { type: 'description', index: i });
         }
         
-        // Collect tags
-        if (character.tags && Array.isArray(character.tags)) {
-            character.tags.forEach(tag => {
+        // Collect tags from originalTags for translation
+        if (character.originalTags && Array.isArray(character.originalTags)) {
+            // Split the array into three parts: tagTexts, tagNames, tagValues
+            const totalTags = character.originalTags.length / 3;
+            const tagNames = character.originalTags.slice(totalTags, totalTags * 2);
+            
+            tagNames.forEach(tag => {
                 if (tag && !containsChinese(tag)) {
                     textsToTranslate.add(tag);
                     if (!textMapping.has(tag)) {
-                        textMapping.set(tag, { type: 'tag', indices: [] });
+                        textMapping.set(tag, { type: 'originalTag', indices: [] });
                     }
                     textMapping.get(tag).indices.push(i);
                 }
@@ -215,26 +219,20 @@ async function applyTranslationsToCharacters(characters) {
             character.descriptionTranslated = true;
             character.description = translationResults[character.description];
         }
-        
-        // Apply tag translations
-        if (character.tags && Array.isArray(character.tags)) {
-            const uniqueTags = [...new Set(character.tags)];
-            character.tags = uniqueTags.map(tag => {
-                if (translationResults[tag]) {
-                    return {
-                        text: translationResults[tag], // Chinese for display
-                        original: tag, // English for data processing
-                        translated: true,
-                        dataValue: tag // English for search/comparison
-                    };
-                }
-                return {
-                    text: tag, // English for display (no translation available)
-                    original: tag, // English for data processing
-                    translated: false,
-                    dataValue: tag // English for search/comparison
-                };
-            });
+                
+        // Apply originalTags translation - update tagNames with translations
+        if (character.originalTags && Array.isArray(character.originalTags)) {
+            // Split the array into three parts: tagTexts, tagNames, tagValues
+            const totalTags = character.originalTags.length / 3;
+            const tagTexts = character.originalTags.slice(0, totalTags);
+            const tagNames = character.originalTags.slice(totalTags, totalTags * 2);
+            const tagValues = character.originalTags.slice(totalTags * 2);
+            
+            // Apply translations to tagNames
+            const translatedTagNames = tagNames.map(tag => translationResults[tag] || tag);
+            
+            // Reconstruct originalTags with translated names
+            character.originalTags = [...tagTexts, ...translatedTagNames, ...tagValues];
         }
     });
 
@@ -536,9 +534,16 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
         if (data.data && Array.isArray(data.data)) {
             const characters = data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
-                const tagNames = char.tags ? char.tags.map(tag => tag.name || tag.slug || tag).filter(Boolean) : [];
-                const customTags = char.tags ? char.tags.map(tag => tag.id || tag.slug || tag).filter(Boolean) : [];
-                const allTags = [...tagNames, ...customTags];
+                const tagObjects = char.tags || [];
+                const customTagIds = char.custom_tags || [];
+                
+                // Extract tag texts, names, and values directly
+                const tagTexts = tagObjects.map(tag => tag.name || tag.slug || `Tag ${tag.id}`).filter(Boolean);
+                const tagNames = tagObjects.map(tag => tag.name || tag.slug || `Tag ${tag.id}`).filter(Boolean);
+                const tagValues = tagObjects.map(tag => tag.id ? tag.id.toString() : (tag.name || tag.slug || `Tag ${tag.id}`)).filter(Boolean);
+                
+                // Add custom tag IDs to values
+                const allTagValues = [...tagValues, ...customTagIds.map(id => id.toString())];
                 
                 // Create avatar URL - JanitorAI uses relative paths
                 const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}?width=400` : '';
@@ -569,7 +574,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                     // Store original texts for hover display
                     originalName: char.name || 'Unknown Character',
                     originalDescription: char.description || 'No description available',
-                    originalTags: allTags
+                    originalTags: [...tagTexts, ...tagNames, ...allTagValues] // 原文, 译文, 值
                 };
             });
 
@@ -703,6 +708,11 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
         const originalName = node.name;
         const originalDescription = node.tagline || node.description || "Description here...";
         const originalTags = node.topics || [];
+        
+        // Extract tag texts, names, and values for CHub
+        const tagTexts = originalTags; // 原文
+        const tagNames = originalTags; // 译文（翻译后）
+        const tagValues = originalTags; // 值（用于搜索）
 
         const character = {
             url: URL.createObjectURL(characterBlobs[i]),
@@ -730,7 +740,7 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             // Store original texts for hover display
             originalName: originalName,
             originalDescription: originalDescription,
-            originalTags: originalTags
+            originalTags: [...tagTexts, ...tagNames, ...tagValues] // 原文, 译文, 值
         };
 
         // Apply translations and store translation info
@@ -741,28 +751,6 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
         if (translationResults[character.description]) {
             character.descriptionTranslated = true;
             character.description = translationResults[character.description];
-        }
-        if (originalTags && Array.isArray(originalTags)) {
-            // Remove duplicates and process tags
-            const uniqueTags = [...new Set(originalTags)];
-            character.tags = uniqueTags.map(tag => {
-                if (translationResults[tag]) {
-                    return {
-                        text: translationResults[tag], // Chinese for display
-                        original: tag, // English for data processing
-                        translated: true,
-                        dataValue: tag // English for search/comparison
-                    };
-                }
-                return {
-                    text: tag, // English for display (no translation available)
-                    original: tag, // English for data processing
-                    translated: false,
-                    dataValue: tag // English for search/comparison
-                };
-            });
-        } else {
-            character.tags = [];
         }
 
         return character;
@@ -847,7 +835,25 @@ function generateCharacterListItem(character, index, selectedTags = []) {
     
     // Generate tags with hover tooltips for original text
     const processedTags = new Set(); // Track processed tags to avoid duplicates
-    const tagsElement = character.tags.map(tag => {
+    
+    // Extract tags from originalTags
+    let tagsToDisplay = [];
+    if (character.originalTags && Array.isArray(character.originalTags)) {
+        const totalTags = character.originalTags.length / 3;
+        const tagTexts = character.originalTags.slice(0, totalTags);
+        const tagNames = character.originalTags.slice(totalTags, totalTags * 2);
+        const tagValues = character.originalTags.slice(totalTags * 2);
+        
+        // Use translated names for display
+        tagsToDisplay = tagNames.map((name, index) => ({
+            text: name,
+            original: tagTexts[index] || name,
+            dataValue: tagValues[index] || name,
+            translated: name !== (tagTexts[index] || name) // Check if translated
+        }));
+    }
+    
+    const tagsElement = tagsToDisplay.map(tag => {
         let tagText, tagOriginal, tagDataValue;
         
         if (typeof tag === 'object' && tag !== null) {
