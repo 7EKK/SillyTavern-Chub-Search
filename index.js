@@ -494,7 +494,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                 const allTags = [...tagNames, ...customTags];
                 
                 // Create avatar URL - JanitorAI uses relative paths
-                const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}.jpg?width=400` : '';
+                const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}?width=400` : '';
                 
                 return {
                     url: avatarUrl,
