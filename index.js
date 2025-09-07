@@ -15,6 +15,8 @@ const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
 const JANITOR_API_ENDPOINT = "https://janitorai.com/hampter/characters";
+const JANITOR_CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
+const JANITOR_CORS_PROXY_BACKUP = "https://api.allorigins.win/raw?url=";
 const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
 const TRANSLATE_API_KEY = "sk-*";
 
@@ -334,15 +336,44 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
     if (search) url += `&search=${search}`;
     if (customTags) url += `&${customTags}`;
     
-    console.log('Fetching from JanitorAI:', url);
+    // Try multiple CORS proxy services
+    const proxyUrls = [
+        `${JANITOR_CORS_PROXY}${url}`,
+        `${JANITOR_CORS_PROXY_BACKUP}${encodeURIComponent(url)}`
+    ];
+    
+    let response;
+    let lastError;
+    
+    for (let i = 0; i < proxyUrls.length; i++) {
+        try {
+            console.log(`Trying CORS proxy ${i + 1}:`, proxyUrls[i]);
+            response = await fetch(proxyUrls[i], {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (response.ok) {
+                console.log(`Success with proxy ${i + 1}`);
+                break;
+            } else {
+                console.warn(`Proxy ${i + 1} failed:`, response.status, response.statusText);
+                lastError = new Error(`Proxy ${i + 1} failed: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.warn(`Proxy ${i + 1} error:`, error.message);
+            lastError = error;
+            response = null;
+        }
+    }
+    
+    if (!response || !response.ok) {
+        console.error('All CORS proxies failed. Last error:', lastError);
+        return [];
+    }
     
     try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.error('JanitorAI API error:', response.status, response.statusText);
-            return [];
-        }
-        
         const data = await response.json();
         console.log('JanitorAI response:', data);
         
@@ -389,7 +420,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
         
         return [];
     } catch (error) {
-        console.error('Error fetching from JanitorAI:', error);
+        console.error('Error parsing JanitorAI response:', error);
         return [];
     }
 }
