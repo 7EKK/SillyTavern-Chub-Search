@@ -57,6 +57,13 @@ body img.thumbnail {
     overflow: hidden;
     text-overflow: ellipsis;  /* Ensures that long descriptions end in an ellipsis */
     text-align: left;  /* aligns content to the left */
+    text-decoration: none;  /* Remove default link underline */
+    display: block;  /* Make it behave like a block element */
+}
+
+.character-list-item .info .description:hover {
+    color: #007bff;  /* Change color on hover to indicate it's clickable */
+    text-decoration: underline;  /* Add underline on hover */
 }
 
 .character-list-item .info .tags{
@@ -155,4 +162,21 @@ body img.thumbnail {
 /* Grey out the entire list when searching */
 .searching {
     filter: grayscale(100%);
+}
+
+/* API Configuration Container */
+.api-config-container {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.api-config-container .flex-container {
+    margin-bottom: 8px;
+}
+
+.api-config-container .flex-container:last-child {
+    margin-bottom: 0;
 }

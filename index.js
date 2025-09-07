@@ -496,18 +496,18 @@ function generateCharacterListItem(character, index) {
     
     // Generate name with hover tooltip for original text
     const nameElement = character.nameTranslated 
-        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name" title="原文: ${character.originalName}">${character.name || "Default Name"}</a>`
+        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name" title="${character.originalName}">${character.name || "Default Name"}</a>`
         : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="name">${character.name || "Default Name"}</a>`;
     
     // Generate description with hover tooltip for original text
     const descriptionElement = character.descriptionTranslated
-        ? `<div class="description" title="原文: ${character.originalDescription}">${character.description}</div>`
-        : `<div class="description">${character.description}</div>`;
+        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description" title="${character.originalDescription}">${character.description}</a>`
+        : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description">${character.description}</a>`;
     
     // Generate tags with hover tooltips for original text
     const tagsElement = character.tags.map(tag => {
         if (typeof tag === 'object' && tag.translated) {
-            return `<span class="tag" title="原文: ${tag.original}">${tag.text}</span>`;
+            return `<span class="tag" title="${tag.original}">${tag.text}</span>`;
         } else if (typeof tag === 'string') {
             return `<span class="tag">${tag}</span>`;
         }
@@ -571,17 +571,17 @@ async function displayCharactersInListViewPopup() {
     }
 
     const readableOptions = {
-        "download_count": "Download Count",
+        "download_count": "下载次数",
         "id": "ID",
-        "rating": "Rating",
-        "default": "Default",
-        "rating_count": "Rating Count",
-        "last_activity_at": "Last Activity",
-        "trending_downloads": "Trending Downloads",
-        "created_at": "Creation Date",
-        "name": "Name",
-        "n_tokens": "Token Count",
-        "random": "Random"
+        "rating": "评分",
+        "default": "默认",
+        "rating_count": "评分数量",
+        "last_activity_at": "最后活动",
+        "trending_downloads": "热门下载",
+        "created_at": "创建日期",
+        "name": "名称",
+        "n_tokens": "Token数量",
+        "random": "随机"
     };
 
     // TODO: This should be a template
@@ -597,12 +597,14 @@ async function displayCharactersInListViewPopup() {
             <input type="text" id="characterSearchInput" class="text_pole flex1" placeholder="Search CHUB for characters...">
             </div>
             <div class="flex-container flex-no-wrap flex-align-center">
+            <div class="flex-container flex-no-wrap flex-align-center flex1">
             <label for="includeTags"><i class="fas fa-plus-square"></i></label>
             <input type="text" id="includeTags" class="text_pole flex1" placeholder="Include tags (comma separated)">
             </div>
-            <div class="flex-container">
+            <div class="flex-container flex-no-wrap flex-align-center flex1">
             <label for="excludeTags"><i class="fas fa-minus-square"></i></label>
             <input type="text" id="excludeTags" class="text_pole flex1" placeholder="Exclude tags (comma separated)">
+            </div>
             </div>
             <div class="page-buttons flex-container flex-no-wrap flex-align-center">
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -612,7 +614,7 @@ async function displayCharactersInListViewPopup() {
                     <button class="menu_button" id="pageUpButton"><i class="fas fa-chevron-right"></i></button>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
-                <label for="sortOrder">Sort By:</label> <!-- This is the label for sorting -->
+                <label for="sortOrder">排序方式:</label> <!-- This is the label for sorting -->
                 <select class="margin0" id="sortOrder">
                 ${Object.keys(readableOptions).map(key => `<option value="${key}">${readableOptions[key]}</option>`).join('')}
                 </select>
@@ -624,14 +626,17 @@ async function displayCharactersInListViewPopup() {
                 <div class="flex-container flex-no-wrap flex-align-center">
                     <label for="enableTranslationCheckbox">翻译:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
+                    <button type="button" id="toggleApiConfig" class="menu_button" style="margin-left: 10px;">API配置</button>
                 </div>
-                <div class="flex-container flex-no-wrap flex-align-center">
-                    <label for="translateEndpointInput">翻译API地址:</label>
-                    <input type="text" id="translateEndpointInput" class="text_pole flex1" placeholder="http://localhost:7009/translate">
-                </div>
-                <div class="flex-container flex-no-wrap flex-align-center">
-                    <label for="translateKeyInput">翻译API密钥:</label>
-                    <input type="text" id="translateKeyInput" class="text_pole flex1" placeholder="sk-*">
+                <div id="apiConfigContainer" class="api-config-container" style="display: none;">
+                    <div class="flex-container flex-no-wrap flex-align-center">
+                        <label for="translateEndpointInput">翻译API地址:</label>
+                        <input type="text" id="translateEndpointInput" class="text_pole flex1" placeholder="http://localhost:7009/translate">
+                    </div>
+                    <div class="flex-container flex-no-wrap flex-align-center">
+                        <label for="translateKeyInput">翻译API密钥:</label>
+                        <input type="text" id="translateKeyInput" class="text_pole flex1" placeholder="sk-*">
+                    </div>
                 </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
             </div>
@@ -696,6 +701,25 @@ async function displayCharactersInListViewPopup() {
     characterListContainer.addEventListener('click', async function (event) {
         if (event.target.classList.contains('download-btn')) {
             downloadCharacter(event.target.getAttribute('data-path'));
+        } else if (event.target.classList.contains('tag')) {
+            // Handle tag click - add to include tags
+            const tagText = event.target.textContent.trim();
+            const includeTagsInput = document.getElementById('includeTags');
+            const currentValue = includeTagsInput.value.trim();
+            
+            if (currentValue === '') {
+                includeTagsInput.value = tagText;
+            } else {
+                // Check if tag already exists
+                const existingTags = currentValue.split(',').map(tag => tag.trim());
+                if (!existingTags.includes(tagText)) {
+                    includeTagsInput.value = currentValue + ', ' + tagText;
+                }
+            }
+            
+            // Trigger search with new tags
+            const searchEvent = new Event('change');
+            includeTagsInput.dispatchEvent(searchEvent);
         }
     });
 
@@ -761,6 +785,20 @@ async function displayCharactersInListViewPopup() {
         extension_settings.chub.enableTranslation = e.target.checked;
         // Save settings
         saveSettings();
+    });
+    
+    // Toggle API configuration visibility
+    document.getElementById('toggleApiConfig').addEventListener('click', function(e) {
+        const apiConfigContainer = document.getElementById('apiConfigContainer');
+        const toggleButton = document.getElementById('toggleApiConfig');
+        
+        if (apiConfigContainer.style.display === 'none') {
+            apiConfigContainer.style.display = 'block';
+            toggleButton.textContent = '隐藏API配置';
+        } else {
+            apiConfigContainer.style.display = 'none';
+            toggleButton.textContent = 'API配置';
+        }
     });
     document.getElementById('translateEndpointInput').addEventListener('change', function(e) {
         extension_settings.chub.translateApiEndpoint = e.target.value;
