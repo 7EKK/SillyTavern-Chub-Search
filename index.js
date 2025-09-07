@@ -230,7 +230,6 @@ async function downloadCharacter(input) {
 
         const importResponse = await fetch('/api/characters/import', {
             method: 'POST',
-            headers: getRequestHeaders(),
             body: formData,
         });
 
