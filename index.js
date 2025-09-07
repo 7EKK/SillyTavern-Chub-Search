@@ -670,10 +670,12 @@ async function displayCharactersInListViewPopup() {
                 <div class="flex-container flex-no-wrap flex-align-center">
                     <label for="enableTranslationCheckbox">翻译:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
+                </div>
+                <div class="flex-container flex-no-wrap flex-align-center">
                     <label for="toggleApiConfig" style="margin-left: 10px; cursor: pointer;">
                         <i class="fas fa-key" id="apiConfigIcon"></i>
                     </label>
-                    <input type="radio" id="toggleApiConfig" name="apiConfigToggle" style="display: none;">
+                    <input type="checkbox" id="toggleApiConfig">
                 </div>
                 <div id="apiConfigContainer" class="api-config-container" style="display: none;">
                     <div class="api-config-tags">
@@ -846,32 +848,14 @@ async function displayCharactersInListViewPopup() {
     // Toggle API configuration visibility
     const toggleApiConfig = document.getElementById('toggleApiConfig');
     const apiConfigContainer = document.getElementById('apiConfigContainer');
-    const apiConfigIcon = document.getElementById('apiConfigIcon');
     
-    // Handle radio button change
+    // Handle checkbox change
     toggleApiConfig.addEventListener('change', function(e) {
         if (e.target.checked) {
             apiConfigContainer.style.display = 'block';
-            apiConfigIcon.style.color = '#007bff'; // Blue color when active
         } else {
             apiConfigContainer.style.display = 'none';
-            apiConfigIcon.style.color = ''; // Reset to default color
         }
-    });
-    
-    // Handle direct click on icon
-    apiConfigIcon.addEventListener('click', function(e) {
-        e.preventDefault();
-        toggleApiConfig.checked = !toggleApiConfig.checked;
-        toggleApiConfig.dispatchEvent(new Event('change'));
-    });
-    
-    // Handle click on label (parent of icon)
-    const apiConfigLabel = document.querySelector('label[for="toggleApiConfig"]');
-    apiConfigLabel.addEventListener('click', function(e) {
-        e.preventDefault();
-        toggleApiConfig.checked = !toggleApiConfig.checked;
-        toggleApiConfig.dispatchEvent(new Event('change'));
     });
     document.getElementById('translateEndpointInput').addEventListener('change', function(e) {
         extension_settings.chub.translateApiEndpoint = e.target.value;
