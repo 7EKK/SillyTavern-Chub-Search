@@ -14,6 +14,7 @@ const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 // Endpoint for API call
 const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
+const JANITOR_API_ENDPOINT = "https://janitorai.com/hampter/characters";
 const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
 const TRANSLATE_API_KEY = "sk-*";
 
@@ -23,6 +24,7 @@ const defaultSettings = {
     enableTranslation: false,
     translateApiEndpoint: "http://localhost:7009/translate",
     translateApiKey: "sk-*",
+    apiProvider: "chub", // "chub" or "janitor"
 };
 
 let chubCharacters = [];
@@ -296,6 +298,101 @@ function makeTagPermutations(tags) {
 }
 
 /**
+ * Fetches characters from JanitorAI API based on specified search criteria.
+ * @param {Object} options - The search options object.
+ * @param {string} [options.searchTerm] - A search term to filter characters by name/description.
+ * @param {Array<string>} [options.includeTags] - A list of tags that the returned characters should include.
+ * @param {Array<string>} [options.excludeTags] - A list of tags that the returned characters should not include.
+ * @param {boolean} [options.nsfw] - Whether or not to include NSFW characters. Defaults to the extension settings.
+ * @param {string} [options.sort] - The criteria by which to sort the characters. Default is by download count.
+ * @param {number} [options.page=1] - The page number for pagination. Defaults to 1.
+ * @returns {Promise<Array>} - Resolves with an array of character objects that match the search criteria.
+ */
+async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags, nsfw, sort, page=1 }) {
+    const mode = nsfw ? 'nsfw' : 'sfw';
+    const search = searchTerm ? encodeURIComponent(searchTerm) : '';
+    const customTags = includeTags && includeTags.length > 0 ? includeTags.map(tag => `custom_tags[]=${encodeURIComponent(tag)}`).join('&') : '';
+    
+    // Map sort options to JanitorAI format
+    const sortMap = {
+        'download_count': 'popular',
+        'rating': 'popular', // JanitorAI doesn't have rating sort, use popular
+        'created_at': 'latest',
+        'name': 'popular', // JanitorAI doesn't have name sort, use popular
+        'default': 'popular',
+        'popular': 'popular',
+        'latest': 'latest',
+        'trending': 'trending',
+        'trending24': 'trending24',
+        'relevance': 'relevance'
+    };
+    const janitorSort = sortMap[sort] || 'popular';
+    
+    let url = `${JANITOR_API_ENDPOINT}?page=${page}&mode=${mode}&sort=${janitorSort}`;
+    if (search) url += `&search=${search}`;
+    if (customTags) url += `&${customTags}`;
+    
+    console.log('Fetching from JanitorAI:', url);
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error('JanitorAI API error:', response.status, response.statusText);
+            return [];
+        }
+        
+        const data = await response.json();
+        console.log('JanitorAI response:', data);
+        
+        // Transform JanitorAI response to match our character format
+        if (data.data && Array.isArray(data.data)) {
+            return data.data.map(char => {
+                // Extract tags from the tags array (which contains objects with name property)
+                const tagNames = char.tags ? char.tags.map(tag => tag.name || tag.slug || tag).filter(Boolean) : [];
+                const customTags = char.custom_tags || [];
+                const allTags = [...tagNames, ...customTags];
+                
+                // Create avatar URL - JanitorAI uses relative paths
+                const avatarUrl = char.avatar ? `https://janitorai.com/${char.avatar}` : '';
+                
+                return {
+                    url: avatarUrl,
+                    description: char.description || 'No description available',
+                    name: char.name || 'Unknown Character',
+                    fullPath: char.id || '',
+                    tags: allTags,
+                    author: char.creator_name || 'Unknown',
+                    starCount: 0, // JanitorAI doesn't have star count
+                    rating: 0, // JanitorAI doesn't have rating
+                    ratingCount: 0,
+                    nTokens: char.total_tokens || 0,
+                    forksCount: 0, // JanitorAI doesn't have forks
+                    nChats: char.stats ? char.stats.chat || 0 : 0,
+                    nMessages: char.stats ? char.stats.message || 0 : 0,
+                    createdAt: char.created_at || '',
+                    lastActivityAt: char.updated_at || '',
+                    avatar_url: avatarUrl,
+                    max_res_url: avatarUrl,
+                    verified: char.creator_verified || false,
+                    recommended: false, // JanitorAI doesn't have recommended flag
+                    nsfw_image: char.is_image_nsfw || false,
+                    hasGallery: false, // JanitorAI doesn't have gallery info
+                    // Store original texts for hover display
+                    originalName: char.name || 'Unknown Character',
+                    originalDescription: char.description || 'No description available',
+                    originalTags: allTags
+                };
+            });
+        }
+        
+        return [];
+    } catch (error) {
+        console.error('Error fetching from JanitorAI:', error);
+        return [];
+    }
+}
+
+/**
  * Fetches characters based on specified search criteria.
  * @param {Object} options - The search options object.
  * @param {string} [options.searchTerm] - A search term to filter characters by name/description.
@@ -307,6 +404,14 @@ function makeTagPermutations(tags) {
  * @returns {Promise<Array>} - Resolves with an array of character objects that match the search criteria.
  */
 async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, nsfw, sort, page=1 }) {
+    // Check which API provider to use
+    const apiProvider = extension_settings.chub.apiProvider || 'chub';
+    
+    if (apiProvider === 'janitor') {
+        return await fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags, nsfw, sort, page });
+    }
+    
+    // Default to CHub API
 
     let first = extension_settings.chub.findCount;
     let asc = false;
@@ -650,7 +755,13 @@ async function displayCharactersInListViewPopup() {
         "created_at": "创建日期",
         "name": "名称",
         "n_tokens": "Token数量",
-        "random": "随机"
+        "random": "随机",
+        // JanitorAI specific options
+        "popular": "热门",
+        "latest": "最新",
+        "trending": "趋势",
+        "trending24": "24小时趋势",
+        "relevance": "相关性"
     };
 
     // TODO: This should be a template
@@ -692,6 +803,13 @@ async function displayCharactersInListViewPopup() {
                     <input type="checkbox" id="nsfwCheckbox">
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
+                    <label for="apiProviderSelect">API:</label>
+                    <select id="apiProviderSelect" class="margin0">
+                        <option value="chub">CHub</option>
+                        <option value="janitor">JanitorAI</option>
+                    </select>
+                </div>
+                <div class="flex-container flex-no-wrap flex-align-center">
                     <label for="enableTranslationCheckbox">翻译:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
                 </div>
@@ -714,6 +832,9 @@ async function displayCharactersInListViewPopup() {
                     </div>
                 </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
+                <div class="flex-container flex-no-wrap flex-align-center" style="margin-left: 10px;">
+                    <span id="currentApiDisplay" style="font-size: 0.8em; color: var(--SmartThemeEmColor);">API: CHub</span>
+                </div>
             </div>
 
 
@@ -731,9 +852,17 @@ async function displayCharactersInListViewPopup() {
 
     // Initialize settings UI
     document.getElementById('nsfwCheckbox').checked = extension_settings.chub.nsfw || false;
+    document.getElementById('apiProviderSelect').value = extension_settings.chub.apiProvider || 'chub';
     document.getElementById('enableTranslationCheckbox').checked = extension_settings.chub.enableTranslation || false;
     document.getElementById('translateEndpointInput').value = extension_settings.chub.translateApiEndpoint || TRANSLATE_API_ENDPOINT;
     document.getElementById('translateKeyInput').value = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
+    
+    // Initialize API display
+    const apiDisplay = document.getElementById('currentApiDisplay');
+    if (apiDisplay) {
+        const currentApi = extension_settings.chub.apiProvider || 'chub';
+        apiDisplay.textContent = `API: ${currentApi === 'janitor' ? 'JanitorAI' : 'CHub'}`;
+    }
 
     let clone = null;  // Store reference to the cloned image
 
@@ -866,6 +995,18 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('sortOrder').addEventListener('change', handleSearch);
     document.getElementById('nsfwCheckbox').addEventListener('change', function(e) {
         extension_settings.chub.nsfw = e.target.checked;
+        handleSearch(e);
+    });
+    document.getElementById('apiProviderSelect').addEventListener('change', function(e) {
+        extension_settings.chub.apiProvider = e.target.value;
+        saveSettings();
+        
+        // Update API display
+        const apiDisplay = document.getElementById('currentApiDisplay');
+        if (apiDisplay) {
+            apiDisplay.textContent = `API: ${e.target.value === 'janitor' ? 'JanitorAI' : 'CHub'}`;
+        }
+        
         handleSearch(e);
     });
     document.getElementById('enableTranslationCheckbox').addEventListener('change', function(e) {
