@@ -535,16 +535,13 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
             const characters = data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
                 const tagObjects = char.tags || [];
-                const tagIds = char.tagIds || [];
-                
+
                 // Extract tag texts, names, and values directly
                 const tagTexts = tagObjects.map(tag => tag.name || tag.slug || `Tag ${tag.id}`).filter(Boolean);
                 const tagNames = tagObjects.map(tag => tag.name || tag.slug || `Tag ${tag.id}`).filter(Boolean);
                 const tagValues = tagObjects.map(tag => tag.id ? tag.id.toString() : (tag.name || tag.slug || `Tag ${tag.id}`)).filter(Boolean);
                 
                 // Add custom tag IDs to values
-                const allTagValues = [...tagValues, ...tagIds.map(id => id.toString())];
-                
                 // Create avatar URL - JanitorAI uses relative paths
                 const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}?width=400` : '';
                 
@@ -574,7 +571,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                     // Store original texts for hover display
                     originalName: char.name || 'Unknown Character',
                     originalDescription: char.description || 'No description available',
-                    originalTags: [...tagTexts, ...tagNames, ...allTagValues] // 原文, 译文, 值
+                    originalTags: [...tagTexts, ...tagNames, ...tagValues] // 原文, 译文, 值
                 };
             });
 
