@@ -15,8 +15,8 @@ const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
 const JANITOR_API_ENDPOINT = "https://janitorai.com/hampter/characters";
-const JANITOR_CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
-const JANITOR_CORS_PROXY_BACKUP = "https://api.allorigins.win/raw?url=";
+const CRAWL_API_ENDPOINT = "http://localhost:7010/crawl";
+const CRAWL_API_KEY = "sk-*";
 const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
 const TRANSLATE_API_KEY = "sk-*";
 
@@ -26,6 +26,8 @@ const defaultSettings = {
     enableTranslation: false,
     translateApiEndpoint: "http://localhost:7009/translate",
     translateApiKey: "sk-*",
+    crawlApiEndpoint: "http://localhost:7010/crawl",
+    crawlApiKey: "sk-*",
     apiProvider: "chub", // "chub" or "janitor"
 };
 
@@ -336,48 +338,60 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
     if (search) url += `&search=${search}`;
     if (customTags) url += `&${customTags}`;
     
-    // Try multiple CORS proxy services
-    const proxyUrls = [
-        `${JANITOR_CORS_PROXY}${url}`,
-        `${JANITOR_CORS_PROXY_BACKUP}${encodeURIComponent(url)}`
-    ];
+    // Use crawl API to fetch JanitorAI data
+    const crawlApiEndpoint = extension_settings.chub.crawlApiEndpoint || CRAWL_API_ENDPOINT;
+    const crawlApiKey = extension_settings.chub.crawlApiKey || CRAWL_API_KEY;
     
-    let response;
-    let lastError;
-    
-    for (let i = 0; i < proxyUrls.length; i++) {
-        try {
-            console.log(`Trying CORS proxy ${i + 1}:`, proxyUrls[i]);
-            response = await fetch(proxyUrls[i], {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            
-            if (response.ok) {
-                console.log(`Success with proxy ${i + 1}`);
-                break;
-            } else {
-                console.warn(`Proxy ${i + 1} failed:`, response.status, response.statusText);
-                lastError = new Error(`Proxy ${i + 1} failed: ${response.status} ${response.statusText}`);
-            }
-        } catch (error) {
-            console.warn(`Proxy ${i + 1} error:`, error.message);
-            lastError = error;
-            response = null;
-        }
-    }
-    
-    if (!response || !response.ok) {
-        console.error('All CORS proxies failed. Last error:', lastError);
-        return [];
-    }
+    console.log('Fetching from JanitorAI via crawl API:', crawlApiEndpoint);
+    console.log('Target URL:', url);
     
     try {
-        const data = await response.json();
-        console.log('JanitorAI response:', data);
+        const response = await fetch(crawlApiEndpoint, {
+            method: 'POST',
+            headers: {
+                'X-Token': crawlApiKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url: url })
+        });
         
-        // Transform JanitorAI response to match our character format
+        if (!response.ok) {
+            console.error('Crawl API error:', response.status, response.statusText);
+            return [];
+        }
+        
+        const crawlResponse = await response.json();
+        console.log('Crawl API response:', crawlResponse);
+        
+        // Parse the wrapped response structure
+        let data;
+        if (crawlResponse.result && crawlResponse.result._results && crawlResponse.result._results.length > 0) {
+            // Extract HTML content and parse JSON from <body><pre> tag
+            const htmlContent = crawlResponse.result._results[0].html;
+            try {
+                // Create a temporary DOM element to parse HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                const preElement = doc.querySelector('body pre');
+                
+                if (preElement) {
+                    const jsonText = preElement.textContent.trim();
+                    data = JSON.parse(jsonText);
+                    console.log('Parsed data from HTML pre tag:', data);
+                } else {
+                    console.error('No pre element found in HTML content');
+                    return [];
+                }
+            } catch (parseError) {
+                console.error('Error parsing HTML content as JSON:', parseError);
+                return [];
+            }
+        } else {
+            console.error('Unexpected crawl API response structure:', crawlResponse);
+            return [];
+        }
+        
+        // The parsed data should have the same structure as JanitorAI
         if (data.data && Array.isArray(data.data)) {
             return data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
@@ -420,7 +434,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
         
         return [];
     } catch (error) {
-        console.error('Error parsing JanitorAI response:', error);
+        console.error('Error fetching from crawl API:', error);
         return [];
     }
 }
@@ -862,6 +876,14 @@ async function displayCharactersInListViewPopup() {
                             <label for="translateKeyInput">翻译API密钥:</label>
                             <input type="text" id="translateKeyInput" class="api-config-input" placeholder="sk-*">
                         </span>
+                        <span class="api-config-tag">
+                            <label for="crawlEndpointInput">爬虫API地址:</label>
+                            <input type="text" id="crawlEndpointInput" class="api-config-input" placeholder="http://localhost:7010/crawl">
+                        </span>
+                        <span class="api-config-tag">
+                            <label for="crawlKeyInput">爬虫API密钥:</label>
+                            <input type="text" id="crawlKeyInput" class="api-config-input" placeholder="sk-*">
+                        </span>
                     </div>
                 </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
@@ -889,6 +911,8 @@ async function displayCharactersInListViewPopup() {
     document.getElementById('enableTranslationCheckbox').checked = extension_settings.chub.enableTranslation || false;
     document.getElementById('translateEndpointInput').value = extension_settings.chub.translateApiEndpoint || TRANSLATE_API_ENDPOINT;
     document.getElementById('translateKeyInput').value = extension_settings.chub.translateApiKey || TRANSLATE_API_KEY;
+    document.getElementById('crawlEndpointInput').value = extension_settings.chub.crawlApiEndpoint || CRAWL_API_ENDPOINT;
+    document.getElementById('crawlKeyInput').value = extension_settings.chub.crawlApiKey || CRAWL_API_KEY;
     
     // Initialize API display
     const apiDisplay = document.getElementById('currentApiDisplay');
@@ -1066,6 +1090,14 @@ async function displayCharactersInListViewPopup() {
     });
     document.getElementById('translateKeyInput').addEventListener('change', function(e) {
         extension_settings.chub.translateApiKey = e.target.value;
+        saveSettings();
+    });
+    document.getElementById('crawlEndpointInput').addEventListener('change', function(e) {
+        extension_settings.chub.crawlApiEndpoint = e.target.value;
+        saveSettings();
+    });
+    document.getElementById('crawlKeyInput').addEventListener('change', function(e) {
+        extension_settings.chub.crawlApiKey = e.target.value;
         saveSettings();
     });
 
