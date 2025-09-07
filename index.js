@@ -235,7 +235,11 @@ async function downloadCharacter(input) {
  */
 function updateCharacterListInView(characters) {
     if (characterListContainer) {
-        characterListContainer.innerHTML = characters.map(generateCharacterListItem).join('');
+        // Get currently selected tags
+        const includeTagsInput = document.getElementById('includeTags');
+        const selectedTags = includeTagsInput ? includeTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+        
+        characterListContainer.innerHTML = characters.map((character, index) => generateCharacterListItem(character, index, selectedTags)).join('');
     }
 }
 
@@ -484,9 +488,10 @@ async function executeCharacterSearch(options) {
  * Generates the HTML structure for a character list item.
  * @param {Object} character - The character data object with properties like url, name, description, tags, and author.
  * @param {number} index - The index of the character in the list.
+ * @param {Array<string>} selectedTags - Array of currently selected tags for highlighting.
  * @returns {string} - Returns an HTML string representation of the character list item.
  */
-function generateCharacterListItem(character, index) {
+function generateCharacterListItem(character, index, selectedTags = []) {
     const ratingStars = character.rating ? '★'.repeat(Math.floor(character.rating)) + '☆'.repeat(5 - Math.floor(character.rating)) : '';
     const ratingText = character.ratingCount > 0 ? `${ratingStars} (${character.ratingCount})` : 'No rating';
     const tokenText = character.nTokens ? `${character.nTokens} tokens` : '';
@@ -501,17 +506,21 @@ function generateCharacterListItem(character, index) {
     
     // Generate description with hover tooltip for original text
     const descriptionElement = character.descriptionTranslated
-        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description" title="${character.originalDescription}">${character.description}</a>`
+        ? `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description" title="${character.description}">${character.description}</a>`
         : `<a href="https://chub.ai/characters/${character.fullPath}" target="_blank" class="description">${character.description}</a>`;
     
     // Generate tags with hover tooltips for original text
     const tagsElement = character.tags.map(tag => {
+        const tagText = typeof tag === 'object' ? tag.text : tag;
+        const isSelected = selectedTags.includes(tagText);
+        const selectedClass = isSelected ? ' tag-selected' : '';
+        
         if (typeof tag === 'object' && tag.translated) {
-            return `<span class="tag" title="${tag.original}">${tag.text}</span>`;
+            return `<span class="tag${selectedClass}" title="${tag.original}">${tag.text}</span>`;
         } else if (typeof tag === 'string') {
-            return `<span class="tag">${tag}</span>`;
+            return `<span class="tag${selectedClass}">${tag}</span>`;
         }
-        return `<span class="tag">${tag}</span>`;
+        return `<span class="tag${selectedClass}">${tag}</span>`;
     }).join('');
     
     return `
@@ -588,7 +597,7 @@ async function displayCharactersInListViewPopup() {
     const listLayout = popupState ? popupState : `
     <div class="list-and-search-wrapper" id="list-and-search-wrapper">
         <div class="character-list-popup">
-            ${chubCharacters.map((character, index) => generateCharacterListItem(character, index)).join('')}
+            ${chubCharacters.map((character, index) => generateCharacterListItem(character, index, [])).join('')}
         </div>
         <hr>
         <div class="search-container">
@@ -610,7 +619,7 @@ async function displayCharactersInListViewPopup() {
                 <div class="flex-container flex-no-wrap flex-align-center">
                     <button class="menu_button" id="pageDownButton"><i class="fas fa-chevron-left"></i></button>
                     <label for="pageNumber">Page:</label>
-                    <input type="number" id="pageNumber" class="text_pole textarea_compact wide10pMinFit" min="1" value="1">
+                    <input type="number" id="pageNumber" class="text_pole textarea_compact page-input" min="1" value="1">
                     <button class="menu_button" id="pageUpButton"><i class="fas fa-chevron-right"></i></button>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -626,16 +635,21 @@ async function displayCharactersInListViewPopup() {
                 <div class="flex-container flex-no-wrap flex-align-center">
                     <label for="enableTranslationCheckbox">翻译:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
-                    <button type="button" id="toggleApiConfig" class="menu_button" style="margin-left: 10px;">API配置</button>
+                    <label for="toggleApiConfig" style="margin-left: 10px; cursor: pointer;">
+                        <i class="fas fa-key" id="apiConfigIcon"></i>
+                    </label>
+                    <input type="radio" id="toggleApiConfig" name="apiConfigToggle" style="display: none;">
                 </div>
                 <div id="apiConfigContainer" class="api-config-container" style="display: none;">
-                    <div class="flex-container flex-no-wrap flex-align-center">
-                        <label for="translateEndpointInput">翻译API地址:</label>
-                        <input type="text" id="translateEndpointInput" class="text_pole flex1" placeholder="http://localhost:7009/translate">
-                    </div>
-                    <div class="flex-container flex-no-wrap flex-align-center">
-                        <label for="translateKeyInput">翻译API密钥:</label>
-                        <input type="text" id="translateKeyInput" class="text_pole flex1" placeholder="sk-*">
+                    <div class="api-config-tags">
+                        <span class="api-config-tag">
+                            <label for="translateEndpointInput">翻译API地址:</label>
+                            <input type="text" id="translateEndpointInput" class="api-config-input" placeholder="http://localhost:7009/translate">
+                        </span>
+                        <span class="api-config-tag">
+                            <label for="translateKeyInput">翻译API密钥:</label>
+                            <input type="text" id="translateKeyInput" class="api-config-input" placeholder="sk-*">
+                        </span>
                     </div>
                 </div>
                 <div class="menu_button" id="characterSearchButton">Search</div>
@@ -702,22 +716,28 @@ async function displayCharactersInListViewPopup() {
         if (event.target.classList.contains('download-btn')) {
             downloadCharacter(event.target.getAttribute('data-path'));
         } else if (event.target.classList.contains('tag')) {
-            // Handle tag click - add to include tags
+            // Handle tag click - toggle tag in include tags
             const tagText = event.target.textContent.trim();
             const includeTagsInput = document.getElementById('includeTags');
             const currentValue = includeTagsInput.value.trim();
             
             if (currentValue === '') {
+                // If no tags, add this tag
                 includeTagsInput.value = tagText;
             } else {
                 // Check if tag already exists
                 const existingTags = currentValue.split(',').map(tag => tag.trim());
-                if (!existingTags.includes(tagText)) {
+                if (existingTags.includes(tagText)) {
+                    // Tag exists, remove it
+                    const updatedTags = existingTags.filter(tag => tag !== tagText);
+                    includeTagsInput.value = updatedTags.join(', ');
+                } else {
+                    // Tag doesn't exist, add it
                     includeTagsInput.value = currentValue + ', ' + tagText;
                 }
             }
             
-            // Trigger search with new tags
+            // Trigger search with updated tags
             const searchEvent = new Event('change');
             includeTagsInput.dispatchEvent(searchEvent);
         }
@@ -788,16 +808,16 @@ async function displayCharactersInListViewPopup() {
     });
     
     // Toggle API configuration visibility
-    document.getElementById('toggleApiConfig').addEventListener('click', function(e) {
+    document.getElementById('toggleApiConfig').addEventListener('change', function(e) {
         const apiConfigContainer = document.getElementById('apiConfigContainer');
-        const toggleButton = document.getElementById('toggleApiConfig');
+        const apiConfigIcon = document.getElementById('apiConfigIcon');
         
-        if (apiConfigContainer.style.display === 'none') {
+        if (e.target.checked) {
             apiConfigContainer.style.display = 'block';
-            toggleButton.textContent = '隐藏API配置';
+            apiConfigIcon.style.color = '#007bff'; // Blue color when active
         } else {
             apiConfigContainer.style.display = 'none';
-            toggleButton.textContent = 'API配置';
+            apiConfigIcon.style.color = ''; // Reset to default color
         }
     });
     document.getElementById('translateEndpointInput').addEventListener('change', function(e) {

@@ -70,6 +70,17 @@ body img.thumbnail {
     margin-top: 10px;
 }
 
+/* Selected tag styling */
+.character-list-item .tag-selected {
+    background-color: #007bff !important;
+    color: white !important;
+    border: 1px solid #0056b3 !important;
+}
+
+.character-list-item .tag-selected:hover {
+    background-color: #0056b3 !important;
+}
+
 .character-list-item .info .author {
     font-size: 0.8em; /* This makes the author text 80% of its original size. Adjust as needed. */
     color: var(--SmartThemeEmColor)
@@ -164,6 +175,20 @@ body img.thumbnail {
     filter: grayscale(100%);
 }
 
+/* API Configuration Icon */
+#apiConfigIcon {
+    font-size: 16px;
+    color: #666;
+    transition: color 0.3s ease;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+#apiConfigIcon:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
 /* API Configuration Container */
 .api-config-container {
     margin-top: 10px;
@@ -173,10 +198,50 @@ body img.thumbnail {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.api-config-container .flex-container {
-    margin-bottom: 8px;
+/* API Configuration Tags Layout */
+.api-config-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
 }
 
-.api-config-container .flex-container:last-child {
+.api-config-tag {
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    padding: 5px 10px;
+    white-space: nowrap;
+}
+
+.api-config-tag label {
+    margin-right: 8px;
+    font-size: 0.9em;
+    color: #ccc;
     margin-bottom: 0;
+}
+
+.api-config-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.9em;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.api-config-input::placeholder {
+    color: #888;
+    font-size: 0.8em;
+}
+
+/* Page input styling */
+.page-input {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 60px !important;
+    text-align: center;
 }
