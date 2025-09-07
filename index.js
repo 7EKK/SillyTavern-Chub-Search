@@ -101,6 +101,90 @@ async function translateToEnglish(text) {
 }
 
 /**
+ * Applies translations to an array of characters
+ * @param {Array} characters - Array of character objects to translate
+ * @returns {Promise<Array>} - Array of characters with translations applied
+ */
+async function applyTranslationsToCharacters(characters) {
+    // First, collect all text that needs translation
+    const textsToTranslate = new Set();
+    const textMapping = new Map(); // Map original text to its usage info
+    
+    characters.forEach((character, i) => {
+        // Collect names
+        if (character.name && !containsChinese(character.name)) {
+            textsToTranslate.add(character.name);
+            textMapping.set(character.name, { type: 'name', index: i });
+        }
+        
+        // Collect descriptions
+        if (character.description && !containsChinese(character.description)) {
+            textsToTranslate.add(character.description);
+            textMapping.set(character.description, { type: 'description', index: i });
+        }
+        
+        // Collect tags
+        if (character.tags && Array.isArray(character.tags)) {
+            character.tags.forEach(tag => {
+                if (tag && !containsChinese(tag)) {
+                    textsToTranslate.add(tag);
+                    if (!textMapping.has(tag)) {
+                        textMapping.set(tag, { type: 'tag', indices: [] });
+                    }
+                    textMapping.get(tag).indices.push(i);
+                }
+            });
+        }
+    });
+
+    // Batch translate all collected texts
+    let translationResults = {};
+    if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
+        console.log(`Translating ${textsToTranslate.size} unique texts...`);
+        const textsArray = Array.from(textsToTranslate);
+        translationResults = await batchTranslateToChinese(textsArray);
+    }
+
+    // Apply translations to characters
+    characters.forEach((character, i) => {
+        // Apply name translation
+        if (translationResults[character.name]) {
+            character.nameTranslated = true;
+            character.name = translationResults[character.name];
+        }
+        
+        // Apply description translation
+        if (translationResults[character.description]) {
+            character.descriptionTranslated = true;
+            character.description = translationResults[character.description];
+        }
+        
+        // Apply tag translations
+        if (character.tags && Array.isArray(character.tags)) {
+            const uniqueTags = [...new Set(character.tags)];
+            character.tags = uniqueTags.map(tag => {
+                if (translationResults[tag]) {
+                    return {
+                        text: translationResults[tag], // Chinese for display
+                        original: tag, // English for data processing
+                        translated: true,
+                        dataValue: tag // English for search/comparison
+                    };
+                }
+                return {
+                    text: tag, // English for display (no translation available)
+                    original: tag, // English for data processing
+                    translated: false,
+                    dataValue: tag // English for search/comparison
+                };
+            });
+        }
+    });
+
+    return characters;
+}
+
+/**
  * Batch translates multiple texts to Chinese using the translation API
  * @param {string[]} texts - Array of texts to translate
  * @returns {Promise<Object>} - Object mapping original text to translated text
@@ -393,7 +477,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
         
         // The parsed data should have the same structure as JanitorAI
         if (data.data && Array.isArray(data.data)) {
-            return data.data.map(char => {
+            const characters = data.data.map(char => {
                 // Extract tags from the tags array (which contains objects with name property)
                 const tagNames = char.tags ? char.tags.map(tag => tag.name || tag.slug || tag).filter(Boolean) : [];
                 const customTags = char.custom_tags || [];
@@ -430,6 +514,9 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                     originalTags: allTags
                 };
             });
+
+            // Apply translations using the common function
+            return await applyTranslationsToCharacters(characters);
         }
         
         return [];
@@ -513,53 +600,13 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     let charactersPromises = nodes.map(node => getCharacter(node.fullPath));
     let characterBlobs = await Promise.all(charactersPromises);
 
-    // First, collect all text that needs translation
-    const textsToTranslate = new Set();
-    const textMapping = new Map(); // Map original text to its usage info
-    
-    nodes.forEach((node, i) => {
-        // Collect names
-        if (node.name && !containsChinese(node.name)) {
-            textsToTranslate.add(node.name);
-            textMapping.set(node.name, { type: 'name', index: i });
-        }
-        
-        // Collect descriptions
-        const description = node.tagline || node.description || "Description here...";
-        if (description && !containsChinese(description)) {
-            textsToTranslate.add(description);
-            textMapping.set(description, { type: 'description', index: i });
-        }
-        
-        // Collect tags
-        if (node.topics && Array.isArray(node.topics)) {
-            node.topics.forEach(tag => {
-                if (tag && !containsChinese(tag)) {
-                    textsToTranslate.add(tag);
-                    if (!textMapping.has(tag)) {
-                        textMapping.set(tag, { type: 'tag', indices: [] });
-                    }
-                    textMapping.get(tag).indices.push(i);
-                }
-            });
-        }
-    });
-
-    // Batch translate all collected texts
-    let translationResults = {};
-    if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
-        console.log(`Translating ${textsToTranslate.size} unique texts...`);
-        const textsArray = Array.from(textsToTranslate);
-        translationResults = await batchTranslateToChinese(textsArray);
-    }
-
-    // Build final character list with translations
+    // Build character list first
     chubCharacters = nodes.map((node, i) => {
         const originalName = node.name;
         const originalDescription = node.tagline || node.description || "Description here...";
         const originalTags = node.topics || [];
 
-        const character = {
+        return {
             url: URL.createObjectURL(characterBlobs[i]),
             description: originalDescription,
             name: originalName,
@@ -585,43 +632,13 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             // Store original texts for hover display
             originalName: originalName,
             originalDescription: originalDescription,
-            originalTags: originalTags
+            originalTags: originalTags,
+            tags: originalTags || []
         };
-
-        // Apply translations and store translation info
-        if (translationResults[character.name]) {
-            character.nameTranslated = true;
-            character.name = translationResults[character.name];
-        }
-        if (translationResults[character.description]) {
-            character.descriptionTranslated = true;
-            character.description = translationResults[character.description];
-        }
-        if (originalTags && Array.isArray(originalTags)) {
-            // Remove duplicates and process tags
-            const uniqueTags = [...new Set(originalTags)];
-            character.tags = uniqueTags.map(tag => {
-                if (translationResults[tag]) {
-                    return {
-                        text: translationResults[tag], // Chinese for display
-                        original: tag, // English for data processing
-                        translated: true,
-                        dataValue: tag // English for search/comparison
-                    };
-                }
-                return {
-                    text: tag, // English for display (no translation available)
-                    original: tag, // English for data processing
-                    translated: false,
-                    dataValue: tag // English for search/comparison
-                };
-            });
-        } else {
-            character.tags = [];
-        }
-
-        return character;
     });
+
+    // Apply translations using the common function
+    chubCharacters = await applyTranslationsToCharacters(chubCharacters);
 
     return chubCharacters;
 }
