@@ -201,7 +201,7 @@ async function applyTranslationsToCharacters(characters) {
     // Batch translate all collected texts
     let translationResults = {};
     if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
-        console.log(`Translating ${textsToTranslate.size} unique texts...`);
+        // console.log(`Translating ${textsToTranslate.size} unique texts...`);
         const textsArray = Array.from(textsToTranslate);
         translationResults = await batchTranslateToChinese(textsArray);
     }
@@ -230,7 +230,7 @@ async function applyTranslationsToCharacters(characters) {
             
             // Apply translations to tagNames
             const translatedTagNames = tagNames.map(tag => translationResults[tag] || tag);
-            console.log('translatedTagNames', translatedTagNames);
+            // console.log('translatedTagNames', translatedTagNames);
             // Reconstruct originalTags with translated names
             character.originalTags = [...tagTexts, ...translatedTagNames, ...tagValues];
         }
@@ -692,15 +692,7 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
         }
     });
 
-    // Batch translate all collected texts
-    let translationResults = {};
-    if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
-        console.log(`Translating ${textsToTranslate.size} unique texts...`);
-        const textsArray = Array.from(textsToTranslate);
-        translationResults = await batchTranslateToChinese(textsArray);
-    }
-
-    // Build final character list with translations
+    // Build final character list
     chubCharacters = nodes.map((node, i) => {
         const originalName = node.name;
         const originalDescription = node.tagline || node.description || "Description here...";
@@ -740,20 +732,11 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             originalTags: [...tagTexts, ...tagNames, ...tagValues] // 原文, 译文, 值
         };
 
-        // Apply translations and store translation info
-        if (translationResults[character.name]) {
-            character.nameTranslated = true;
-            character.name = translationResults[character.name];
-        }
-        if (translationResults[character.description]) {
-            character.descriptionTranslated = true;
-            character.description = translationResults[character.description];
-        }
-
         return character;
     });
 
-    return chubCharacters;
+    // Apply translations using the common function
+    return await applyTranslationsToCharacters(chubCharacters);
 }
 
 /**
