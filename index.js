@@ -380,7 +380,6 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             description: originalDescription,
             name: originalName,
             fullPath: node.fullPath,
-            tags: originalTags,
             author: node.fullPath.split('/')[0],
             starCount: node.starCount || 0,
             rating: node.rating || 0,
@@ -412,8 +411,8 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             character.descriptionTranslated = true;
             character.description = translationResults[character.description];
         }
-        if (character.tags && Array.isArray(character.tags)) {
-            character.tags = character.tags.map(tag => {
+        if (originalTags && Array.isArray(originalTags)) {
+            character.tags = originalTags.map(tag => {
                 if (translationResults[tag]) {
                     return {
                         text: translationResults[tag],
@@ -427,6 +426,8 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
                     translated: false
                 };
             });
+        } else {
+            character.tags = [];
         }
 
         return character;
@@ -511,16 +512,27 @@ function generateCharacterListItem(character, index, selectedTags = []) {
     
     // Generate tags with hover tooltips for original text
     const tagsElement = character.tags.map(tag => {
-        const tagText = typeof tag === 'object' ? tag.text : tag;
+        let tagText, tagOriginal;
+        
+        if (typeof tag === 'object' && tag !== null) {
+            tagText = tag.text || tag.original || String(tag);
+            tagOriginal = tag.original || tag.text || String(tag);
+        } else {
+            tagText = String(tag);
+            tagOriginal = String(tag);
+        }
+        
         const isSelected = selectedTags.includes(tagText);
         const selectedClass = isSelected ? ' tag-selected' : '';
         
         if (typeof tag === 'object' && tag.translated) {
-            return `<span class="tag${selectedClass}" title="${tag.original}">${tag.text}</span>`;
+            return `<span class="tag${selectedClass}" title="${tagOriginal}">${tagText}</span>`;
         } else if (typeof tag === 'string') {
-            return `<span class="tag${selectedClass}">${tag}</span>`;
+            return `<span class="tag${selectedClass}">${tagText}</span>`;
+        } else {
+            // Handle other types (numbers, etc.)
+            return `<span class="tag${selectedClass}">${tagText}</span>`;
         }
-        return `<span class="tag${selectedClass}">${tag}</span>`;
     }).join('');
     
     return `
@@ -618,7 +630,6 @@ async function displayCharactersInListViewPopup() {
             <div class="page-buttons flex-container flex-no-wrap flex-align-center">
                 <div class="flex-container flex-no-wrap flex-align-center">
                     <button class="menu_button" id="pageDownButton"><i class="fas fa-chevron-left"></i></button>
-                    <label for="pageNumber">Page:</label>
                     <input type="number" id="pageNumber" class="text_pole textarea_compact page-input" min="1" value="1">
                     <button class="menu_button" id="pageUpButton"><i class="fas fa-chevron-right"></i></button>
                 </div>
