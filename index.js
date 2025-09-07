@@ -601,19 +601,19 @@ async function displayCharactersInListViewPopup() {
         </div>
         <hr>
         <div class="search-container">
-            <div class="flex-container flex-no-wrap flex-align-center">
-            <label for="characterSearchInput"><i class="fas fa-search"></i></label>
-            <input type="text" id="characterSearchInput" class="text_pole flex1" placeholder="Search CHUB for characters...">
-            </div>
-            <div class="flex-container flex-no-wrap flex-align-center">
-            <div class="flex-container flex-no-wrap flex-align-center flex1">
-            <label for="includeTags"><i class="fas fa-plus-square"></i></label>
-            <input type="text" id="includeTags" class="text_pole flex1" placeholder="Include tags (comma separated)">
-            </div>
-            <div class="flex-container flex-no-wrap flex-align-center flex1">
-            <label for="excludeTags"><i class="fas fa-minus-square"></i></label>
-            <input type="text" id="excludeTags" class="text_pole flex1" placeholder="Exclude tags (comma separated)">
-            </div>
+            <div class="search-tags">
+                <span class="search-tag search-tag-main">
+                    <label for="characterSearchInput"><i class="fas fa-search"></i></label>
+                    <input type="text" id="characterSearchInput" class="search-input" placeholder="搜索CHUB角色...">
+                </span>
+                <span class="search-tag">
+                    <label for="includeTags"><i class="fas fa-plus-square"></i></label>
+                    <input type="text" id="includeTags" class="search-input" placeholder="包含标签">
+                </span>
+                <span class="search-tag">
+                    <label for="excludeTags"><i class="fas fa-minus-square"></i></label>
+                    <input type="text" id="excludeTags" class="search-input" placeholder="排除标签">
+                </span>
             </div>
             <div class="page-buttons flex-container flex-no-wrap flex-align-center">
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -808,10 +808,12 @@ async function displayCharactersInListViewPopup() {
     });
     
     // Toggle API configuration visibility
-    document.getElementById('toggleApiConfig').addEventListener('change', function(e) {
-        const apiConfigContainer = document.getElementById('apiConfigContainer');
-        const apiConfigIcon = document.getElementById('apiConfigIcon');
-        
+    const toggleApiConfig = document.getElementById('toggleApiConfig');
+    const apiConfigContainer = document.getElementById('apiConfigContainer');
+    const apiConfigIcon = document.getElementById('apiConfigIcon');
+    
+    // Handle radio button change
+    toggleApiConfig.addEventListener('change', function(e) {
         if (e.target.checked) {
             apiConfigContainer.style.display = 'block';
             apiConfigIcon.style.color = '#007bff'; // Blue color when active
@@ -819,6 +821,21 @@ async function displayCharactersInListViewPopup() {
             apiConfigContainer.style.display = 'none';
             apiConfigIcon.style.color = ''; // Reset to default color
         }
+    });
+    
+    // Handle direct click on icon
+    apiConfigIcon.addEventListener('click', function(e) {
+        e.preventDefault();
+        toggleApiConfig.checked = !toggleApiConfig.checked;
+        toggleApiConfig.dispatchEvent(new Event('change'));
+    });
+    
+    // Handle click on label (parent of icon)
+    const apiConfigLabel = document.querySelector('label[for="toggleApiConfig"]');
+    apiConfigLabel.addEventListener('click', function(e) {
+        e.preventDefault();
+        toggleApiConfig.checked = !toggleApiConfig.checked;
+        toggleApiConfig.dispatchEvent(new Event('change'));
     });
     document.getElementById('translateEndpointInput').addEventListener('change', function(e) {
         extension_settings.chub.translateApiEndpoint = e.target.value;
