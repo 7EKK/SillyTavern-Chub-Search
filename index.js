@@ -456,7 +456,7 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
     const search = searchTerm ? encodeURIComponent(searchTerm) : '';
     // Only add tagIds if there are valid (non-empty) tags
     const validTags = includeTags ? includeTags.filter(tag => tag && tag.trim().length > 0) : [];
-    const tagIds = validTags.length > 0 ? validTags.map(tag => `tag_id=${encodeURIComponent(tag.trim())}`).join('&') : '';
+    const tagIds = validTags.length > 0 ? validTags.map(tag => `tag_id[]=${encodeURIComponent(tag.trim())}`).join('&') : '';
     
     // Map sort options to JanitorAI format
     const sortMap = {
