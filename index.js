@@ -778,7 +778,9 @@ async function displayCharactersInListViewPopup() {
             // downloadCharacter(event.target.getAttribute('data-path'));
             const downUrl = event.target.getAttribute('data-path');
             $('#external_import_button').click();
-            $('dialog textarea').val(downUrl);
+            setTimeout(() => {
+                $('dialog textarea').val(downUrl);
+            }, 1000);
         } else if (event.target.classList.contains('tag')) {
             // Handle tag click - toggle tag in include tags
             // Use data-value (English) for data processing, not display text (Chinese)
