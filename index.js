@@ -202,40 +202,57 @@ function saveSettings() {
 async function downloadCharacter(input) {
     const url = input.trim();
     console.debug('Custom content import started', url);
-    let request = null;
-    // try /api/content/import first and then /import_custom
-    request = await fetch('/api/content/import', {
-        method: 'POST',
-        headers: getRequestHeaders(),
-        body: JSON.stringify({ url }),
-    });
-    if (!request.ok) {  
-        request = await fetch('/import_custom', {
+    
+    try {
+        // Step 1: Get PNG image from /api/content/importURL
+        const imageResponse = await fetch('/api/content/importURL', {
             method: 'POST',
             headers: getRequestHeaders(),
             body: JSON.stringify({ url }),
         });
-    }
 
-    if (!request.ok) {
-        toastr.info("Click to go to the character page", 'Custom content import failed', {onclick: () => window.open(`https://www.chub.ai/characters/${url}`, '_blank') });
-        console.error('Custom content import failed', request.status, request.statusText);
-        return;
-    }
+        if (!imageResponse.ok) {
+            toastr.info("Click to go to the character page", 'Failed to get character image', {
+                onclick: () => window.open(`https://www.chub.ai/characters/${url}`, '_blank')
+            });
+            console.error('Failed to get character image:', imageResponse.status, imageResponse.statusText);
+            return;
+        }
 
-    const data = await request.blob();
-    const customContentType = request.headers.get('X-Custom-Content-Type');
-    const fileName = request.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
-    const file = new File([data], fileName, { type: data.type });
+        // Step 2: Get the PNG image blob
+        const imageBlob = await imageResponse.blob();
+        console.log('Got image blob:', imageBlob.type, imageBlob.size);
 
-    switch (customContentType) {
-        case 'character':
-            processDroppedFiles([file]);
-            break;
-        default:
-            toastr.warning('Unknown content type');
-            console.error('Unknown content type', customContentType);
-            break;
+        // Step 3: Import character using /api/characters/import
+        const formData = new FormData();
+        formData.append('avatar', imageBlob, 'character.png');
+        formData.append('file_type', 'png');
+
+        const importResponse = await fetch('/api/characters/import', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: formData,
+        });
+
+        if (!importResponse.ok) {
+            toastr.error('Failed to import character');
+            console.error('Failed to import character:', importResponse.status, importResponse.statusText);
+            return;
+        }
+
+        // Step 4: Get the response with file name
+        const result = await importResponse.json();
+        console.log('Character imported successfully:', result);
+        
+        if (result.file_name) {
+            toastr.success(`Character "${result.file_name}" imported successfully`);
+        } else {
+            toastr.success('Character imported successfully');
+        }
+
+    } catch (error) {
+        console.error('Error importing character:', error);
+        toastr.error('Error importing character: ' + error.message);
     }
 }
 
