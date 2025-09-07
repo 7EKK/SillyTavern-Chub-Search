@@ -47,6 +47,16 @@ function containsChinese(text) {
 }
 
 /**
+ * Removes HTML tags from text
+ * @param {string} text - The text to clean
+ * @returns {string} - Text with HTML tags removed
+ */
+function stripHtml(text) {
+    if (!text) return '';
+    return text.replace(/<[^>]*>/g, '').trim();
+}
+
+/**
  * Translates text using the translation API
  * @param {string} text - The text to translate
  * @param {string} targetLanguage - The target language code (e.g., 'en', 'zh-CN')
@@ -484,15 +494,17 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
                 const allTags = [...tagNames, ...customTags];
                 
                 // Create avatar URL - JanitorAI uses relative paths
-                const avatarUrl = char.avatar ? `https://janitorai.com/${char.avatar}` : '';
+                const avatarUrl = char.avatar ? `https://ella.janitorai.com/bot-avatars/${char.avatar}.jpg?width=400` : '';
                 
                 return {
                     url: avatarUrl,
-                    description: char.description || 'No description available',
+                    description: stripHtml(char.description) || 'No description available',
                     name: char.name || 'Unknown Character',
                     fullPath: char.id || '',
+                    fullUrl: char.id ? `https://janitorai.com/characters/${char.id}` : '',
                     tags: allTags,
                     author: char.creator_name || 'Unknown',
+                    authorUrl: char.creator_id ? `https://janitorai.com/profiles/${char.creator_id}` : '',
                     starCount: 0, // JanitorAI doesn't have star count
                     rating: 0, // JanitorAI doesn't have rating
                     ratingCount: 0,
@@ -600,13 +612,53 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     let charactersPromises = nodes.map(node => getCharacter(node.fullPath));
     let characterBlobs = await Promise.all(charactersPromises);
 
-    // Build character list first
+    // First, collect all text that needs translation
+    const textsToTranslate = new Set();
+    const textMapping = new Map(); // Map original text to its usage info
+    
+    nodes.forEach((node, i) => {
+        // Collect names
+        if (node.name && !containsChinese(node.name)) {
+            textsToTranslate.add(node.name);
+            textMapping.set(node.name, { type: 'name', index: i });
+        }
+        
+        // Collect descriptions
+        const description = node.tagline || node.description || "Description here...";
+        if (description && !containsChinese(description)) {
+            textsToTranslate.add(description);
+            textMapping.set(description, { type: 'description', index: i });
+        }
+        
+        // Collect tags
+        if (node.topics && Array.isArray(node.topics)) {
+            node.topics.forEach(tag => {
+                if (tag && !containsChinese(tag)) {
+                    textsToTranslate.add(tag);
+                    if (!textMapping.has(tag)) {
+                        textMapping.set(tag, { type: 'tag', indices: [] });
+                    }
+                    textMapping.get(tag).indices.push(i);
+                }
+            });
+        }
+    });
+
+    // Batch translate all collected texts
+    let translationResults = {};
+    if (textsToTranslate.size > 0 && extension_settings.chub.enableTranslation) {
+        console.log(`Translating ${textsToTranslate.size} unique texts...`);
+        const textsArray = Array.from(textsToTranslate);
+        translationResults = await batchTranslateToChinese(textsArray);
+    }
+
+    // Build final character list with translations
     chubCharacters = nodes.map((node, i) => {
         const originalName = node.name;
         const originalDescription = node.tagline || node.description || "Description here...";
         const originalTags = node.topics || [];
 
-        return {
+        const character = {
             url: URL.createObjectURL(characterBlobs[i]),
             description: originalDescription,
             name: originalName,
@@ -632,13 +684,43 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
             // Store original texts for hover display
             originalName: originalName,
             originalDescription: originalDescription,
-            originalTags: originalTags,
-            tags: originalTags || []
+            originalTags: originalTags
         };
-    });
 
-    // Apply translations using the common function
-    chubCharacters = await applyTranslationsToCharacters(chubCharacters);
+        // Apply translations and store translation info
+        if (translationResults[character.name]) {
+            character.nameTranslated = true;
+            character.name = translationResults[character.name];
+        }
+        if (translationResults[character.description]) {
+            character.descriptionTranslated = true;
+            character.description = translationResults[character.description];
+        }
+        if (originalTags && Array.isArray(originalTags)) {
+            // Remove duplicates and process tags
+            const uniqueTags = [...new Set(originalTags)];
+            character.tags = uniqueTags.map(tag => {
+                if (translationResults[tag]) {
+                    return {
+                        text: translationResults[tag], // Chinese for display
+                        original: tag, // English for data processing
+                        translated: true,
+                        dataValue: tag // English for search/comparison
+                    };
+                }
+                return {
+                    text: tag, // English for display (no translation available)
+                    original: tag, // English for data processing
+                    translated: false,
+                    dataValue: tag // English for search/comparison
+                };
+            });
+        } else {
+            character.tags = [];
+        }
+
+        return character;
+    });
 
     return chubCharacters;
 }
