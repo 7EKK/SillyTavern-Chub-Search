@@ -386,37 +386,55 @@ function saveSettings() {
 }
 
 /**
- * Downloads a custom character based on the provided URL.
- * @param {string} input - A string containing the URL of the character to be downloaded.
- * @returns {Promise<void>} - Resolves once the character has been processed or if an error occurs.
+ * Downloads character data from a URL and returns the image blob.
+ * @param {string} url - The URL of the character to be downloaded.
+ * @returns {Promise<Blob|null>} - Resolves with the image blob or null if failed.
  */
-async function downloadCharacter(input) {
-    const url = input.trim();
-    console.debug('Custom content import started', url);
+async function downloadCharacterData(url) {
+    const trimmedUrl = url.trim();
+    console.debug('Downloading character data from:', trimmedUrl);
     
     try {
-        // Step 1: Get PNG image from /api/content/importURL
+        // Get PNG image from /api/content/importURL
         const imageResponse = await fetch('/api/content/importURL', {
             method: 'POST',
             headers: getRequestHeaders(),
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({ url: trimmedUrl }),
         });
 
         if (!imageResponse.ok) {
             toastr.info("Click to go to the character page", 'Failed to get character image', {
-                onclick: () => window.open(`https://www.chub.ai/characters/${url}`, '_blank')
+                onclick: () => window.open(`https://www.chub.ai/characters/${trimmedUrl}`, '_blank')
             });
             console.error('Failed to get character image:', imageResponse.status, imageResponse.statusText);
-            return;
+            return null;
         }
 
-        // Step 2: Get the PNG image blob
+        // Get the PNG image blob
         const imageBlob = await imageResponse.blob();
         console.log('Got image blob:', imageBlob.type, imageBlob.size);
+        return imageBlob;
 
-        // Step 3: Import character using /api/characters/import
+    } catch (error) {
+        console.error('Error downloading character data:', error);
+        toastr.error('Error downloading character data: ' + error.message);
+        return null;
+    }
+}
+
+/**
+ * Uploads a character image blob to SillyTavern.
+ * @param {Blob} imageBlob - The image blob to upload.
+ * @param {string} fileName - The name for the character file.
+ * @returns {Promise<boolean>} - Resolves with true if successful, false otherwise.
+ */
+async function uploadCharacter(imageBlob, fileName = 'character.png') {
+    console.debug('Uploading character:', fileName);
+    
+    try {
+        // Import character using /api/characters/import
         const formData = new FormData();
-        formData.append('avatar', imageBlob, 'character.png');
+        formData.append('avatar', imageBlob, fileName);
         formData.append('file_type', 'png');
 
         // Get headers but exclude Content-Type for FormData
@@ -433,10 +451,10 @@ async function downloadCharacter(input) {
         if (!importResponse.ok) {
             toastr.error('Failed to import character');
             console.error('Failed to import character:', importResponse.status, importResponse.statusText);
-            return;
+            return false;
         }
 
-        // Step 4: Get the response with file name
+        // Get the response with file name
         const result = await importResponse.json();
         console.log('Character imported successfully:', result);
         
@@ -445,11 +463,66 @@ async function downloadCharacter(input) {
         } else {
             toastr.success('Character imported successfully');
         }
+        
+        return true;
 
     } catch (error) {
-        console.error('Error importing character:', error);
-        toastr.error('Error importing character: ' + error.message);
+        console.error('Error uploading character:', error);
+        toastr.error('Error uploading character: ' + error.message);
+        return false;
     }
+}
+
+/**
+ * Downloads and uploads a character using card data URL.
+ * @param {string} cardDataUrl - The card data URL to download from.
+ * @param {string} fallbackUrl - The fallback URL to use if card data download fails.
+ * @returns {Promise<boolean>} - Resolves with true if successful, false otherwise.
+ */
+async function downloadCharacterFromCardData(cardDataUrl, fallbackUrl) {
+    console.log('Using card data URL for direct download:', cardDataUrl);
+    
+    try {
+        // 直接下载角色卡数据
+        const response = await fetch(cardDataUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to download character data: ${response.status}`);
+        }
+        
+        const imageBlob = await response.blob();
+        console.log('Downloaded character data blob:', imageBlob.type, imageBlob.size);
+        
+        // 上传角色卡
+        const success = await uploadCharacter(imageBlob, 'character.png');
+        if (success) {
+            console.log('Character uploaded successfully');
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error downloading/uploading character:', error);
+        toastr.error('Error downloading character: ' + error.message);
+        return false;
+    }
+}
+
+/**
+ * Downloads a custom character based on the provided URL.
+ * @param {string} input - A string containing the URL of the character to be downloaded.
+ * @returns {Promise<void>} - Resolves once the character has been processed or if an error occurs.
+ */
+async function downloadCharacter(input) {
+    const url = input.trim();
+    console.debug('Custom content import started', url);
+    
+    // Step 1: Download character data
+    const imageBlob = await downloadCharacterData(url);
+    if (!imageBlob) {
+        return;
+    }
+    
+    // Step 2: Upload character to SillyTavern
+    await uploadCharacter(imageBlob, 'character.png');
 }
 
 /**
@@ -898,6 +971,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
                 name: char.name || 'Unknown Character',
                 fullPath: char.path || '',
                 fullUrl: char.path ? `https://character-tavern.com/character/${char.path}` : '',
+                cardDataUrl: char.path ? `https://corsproxy.io/?${encodeURIComponent(`https://cards.character-tavern.com/${char.path}.png?action=download`)}` : '',
                 author: char.author || 'Unknown',
                 authorUrl: char.author ? `https://character-tavern.com/author/${char.author}` : '',
                 starCount: char.likes || 0,
@@ -1241,7 +1315,7 @@ function generateCharacterListItem(character, index, selectedTags = []) {
                 ${character.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
                 ${character.recommended ? '<span class="recommended-badge">⭐ Recommended</span>' : ''}
             </div>
-            <div data-path="${character.fullUrl}" class="menu_button download-btn fa-solid fa-cloud-arrow-down faSmallFontSquareFix"></div>
+            <div data-path="${character.fullUrl}" data-card-data-url="${character.cardDataUrl || ''}" class="menu_button download-btn fa-solid fa-cloud-arrow-down faSmallFontSquareFix"></div>
         </div>
     `;
 }
@@ -1442,12 +1516,28 @@ async function displayCharactersInListViewPopup() {
 
     characterListContainer.addEventListener('click', async function (event) {
         if (event.target.classList.contains('download-btn')) {
-            // downloadCharacter(event.target.getAttribute('data-path'));
-            const downUrl = event.target.getAttribute('data-path');
-            $('#external_import_button').click();
-            setTimeout(() => {
-                $('dialog textarea').val(downUrl);
-            }, 1000);
+            const cardDataUrl = event.target.getAttribute('data-card-data-url');
+            const fullUrl = event.target.getAttribute('data-path');
+            
+            // 如果角色卡数据URL存在，则直接下载并上传
+            if (cardDataUrl && cardDataUrl.trim() !== '') {
+                const success = await downloadCharacterFromCardData(cardDataUrl, fullUrl);
+                if (!success) {
+                    // 如果直接下载失败，回退到原来的方式
+                    console.log('Falling back to external import:', fullUrl);
+                    $('#external_import_button').click();
+                    setTimeout(() => {
+                        $('dialog textarea').val(fullUrl);
+                    }, 1000);
+                }
+            } else {
+                // 如果没有角色卡数据URL，使用原来的方式
+                console.log('Using full URL for external import:', fullUrl);
+                $('#external_import_button').click();
+                setTimeout(() => {
+                    $('dialog textarea').val(fullUrl);
+                }, 1000);
+            }
         } else if (event.target.classList.contains('tag')) {
             // Handle tag click - toggle tag in include tags
             // Use data-value (English) for data processing, not display text (Chinese)
