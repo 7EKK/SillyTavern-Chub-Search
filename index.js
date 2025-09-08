@@ -808,6 +808,10 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
     if (!nsfw) {
         filters.push("isNSFW = false");
     }
+    
+    // Add contentWarnings IS EMPTY filter (based on second parameter standard)
+    filters.push("contentWarnings IS EMPTY");
+    
     if (includeTags && includeTags.length > 0) {
         // Filter out empty tags
         const validIncludeTags = includeTags.filter(tag => tag && tag.trim().length > 0);
@@ -847,7 +851,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
         hitsPerPage: 49,
         sort: sortOptions,
         filter: filters,
-        page: page
+        page: parseInt(page) || 1  // Ensure page is a number, not string
     };
     
     try {
