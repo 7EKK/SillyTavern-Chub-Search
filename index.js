@@ -809,12 +809,24 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
         filters.push("isNSFW = false");
     }
     if (includeTags && includeTags.length > 0) {
-        const tagFilters = includeTags.map(tag => `tags = '${tag}'`).join(' OR ');
-        filters.push(`(${tagFilters})`);
+        // Filter out empty tags
+        const validIncludeTags = includeTags.filter(tag => tag && tag.trim().length > 0);
+        if (validIncludeTags.length > 0) {
+            // Add each tag as a separate filter condition
+            validIncludeTags.forEach(tag => {
+                filters.push(`tags = '${tag.trim()}'`);
+            });
+        }
     }
     if (excludeTags && excludeTags.length > 0) {
-        const excludeFilters = excludeTags.map(tag => `tags != '${tag}'`).join(' AND ');
-        filters.push(`(${excludeFilters})`);
+        // Filter out empty tags
+        const validExcludeTags = excludeTags.filter(tag => tag && tag.trim().length > 0);
+        if (validExcludeTags.length > 0) {
+            // Add each tag as a separate filter condition
+            validExcludeTags.forEach(tag => {
+                filters.push(`tags != '${tag.trim()}'`);
+            });
+        }
     }
     
     // Default sort
