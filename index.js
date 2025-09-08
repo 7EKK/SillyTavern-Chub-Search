@@ -614,23 +614,19 @@ async function fetchCharactersFromAICC({ page=1 }) {
     });
     
     try {
-        // Use SillyTavern's proxy to avoid CORS issues
-        const response = await fetch('/api/proxy', {
+        // Use SillyTavern's CORS proxy to avoid CORS issues
+        // Format: /proxy/目标URL
+        const proxyUrl = `/proxy/${encodeURIComponent(AICC_API_ENDPOINT)}`;
+        
+        const response = await fetch(proxyUrl, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://aicharactercards.com/',
                 ...getRequestHeaders() // Use SillyTavern's request headers for authentication
             },
-            body: JSON.stringify({
-                url: AICC_API_ENDPOINT,
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://aicharactercards.com/'
-                },
-                body: new URLSearchParams(formData).toString()
-            })
+            body: new URLSearchParams(formData)
         });
         
         if (!response.ok) {
