@@ -15,6 +15,7 @@ const extensionFolderPath = `scripts/extensions/${extensionName}/`;
 const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
 const JANITOR_API_ENDPOINT = "https://janitorai.com/hampter/characters";
+const AICC_API_ENDPOINT = "https://aicharactercards.com/wp-admin/admin-ajax.php";
 const CRAWL_API_ENDPOINT = "http://localhost:7010/crawl";
 const CRAWL_API_KEY = "sk-*";
 const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
@@ -28,7 +29,7 @@ const defaultSettings = {
     translateApiKey: "sk-*",
     crawlApiEndpoint: "http://localhost:7010/crawl",
     crawlApiKey: "sk-*",
-    apiProvider: "chub", // "chub" or "janitor"
+    apiProvider: "chub", // "chub", "janitor", or "aicc"
 };
 
 // 不同API的排序选项映射
@@ -47,6 +48,9 @@ const sortOptions = {
         "trending": "趋势",
         "trending24": "24小时趋势",
         "relevance": "相关性"
+    },
+    aicc: {
+        "default": "默认"
     }
 };
 
@@ -587,6 +591,145 @@ async function fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags
 }
 
 /**
+ * Fetches characters from AICC API based on specified search criteria.
+ * @param {Object} options - The search options object.
+ * @param {number} [options.page=1] - The page number for pagination. Defaults to 1.
+ * @returns {Promise<Array>} - Resolves with an array of character objects that match the search criteria.
+ */
+async function fetchCharactersFromAICC({ page=1 }) {
+    // Fixed post_ids array from the example
+    const postIds = [
+        3427, 3401, 3435, 4416, 3400, 3423, 3312, 3443, 3417, 3371, 3409, 3441, 3439, 4091, 3397, 3344, 4276, 3421, 3396, 3394, 3336, 7070, 3360, 3628, 4252, 3317, 3405, 3373, 3274, 3338, 3277, 3359, 4492, 5198, 3355, 3403, 3402, 6255, 4246, 4099, 6358, 3375, 3407, 3365, 5482, 4237, 3314, 5539, 5920, 4719, 3437, 4259, 3364, 4839, 6848, 5695, 5731, 4565, 3367, 5137, 3445, 3415, 5954, 5073, 5376, 3413, 7167, 3301, 3313, 5262, 4280, 3276, 3641, 8220, 3278, 5360, 5615, 4665, 5976, 3372, 7858, 7198, 3318, 5827, 5075, 3358, 5899, 7663, 6945, 3395, 5083, 3352, 3334, 5189, 4972, 3347, 6687, 4673, 3411, 6625, 3626, 5353, 5599, 3307, 5071, 6812, 6928, 5479, 8224, 3331, 5689, 7647, 5869, 3425, 7177, 5077, 5500, 8207, 7315, 9172, 5288, 5139, 3348, 6735, 4084, 7289, 8468, 6930, 5601, 7024, 4282, 4970, 8376, 7325, 7553, 4208, 6970, 5662, 7170, 6845, 8517, 6905, 7761, 7773, 7086, 6684, 6761, 9164, 6907, 7285, 7499, 6426, 6913, 7296, 6909, 8612, 6682, 6911, 6424, 8526, 7186, 7183, 7691, 8837, 9187, 9274, 9117, 9193, 9286
+    ];
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('action', 'load_more_posts');
+    formData.append('page', page.toString());
+    formData.append('instance_id', '2');
+    
+    // Add all post_ids
+    postIds.forEach(id => {
+        formData.append('post_ids[]', id.toString());
+    });
+    
+    try {
+        const response = await fetch(AICC_API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://aicharactercards.com/'
+            },
+            body: new URLSearchParams(formData)
+        });
+        
+        if (!response.ok) {
+            console.error('AICC API error:', response.status, response.statusText);
+            return [];
+        }
+        
+        const data = await response.json();
+        console.log('AICC API response:', data);
+        
+        if (!data.success || !data.data || !data.data.html) {
+            console.error('AICC API returned no data');
+            return [];
+        }
+        
+        // Parse HTML content
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(data.data.html, 'text/html');
+        const characterCards = doc.querySelectorAll('.col-md-4.mb-3');
+        
+        const characters = Array.from(characterCards).map(card => {
+            // Extract character information from HTML
+            const titleElement = card.querySelector('h3.aicc-card-title');
+            const name = titleElement ? titleElement.textContent.trim() : 'Unknown Character';
+            
+            const authorElement = card.querySelector('.acg-author-name');
+            const author = authorElement ? authorElement.textContent.trim().replace('@', '') : 'Unknown';
+            
+            // Filter out sponsored content (ads)
+            if (author.includes('赞助内容') || author.includes('Sponsored') || 
+                name.toLowerCase().includes('crushon') || name.toLowerCase().includes('sponsored') ||
+                author.toLowerCase().includes('crushon') || author.toLowerCase().includes('sponsored')) {
+                return null; // Skip this card
+            }
+            
+            const imgElement = card.querySelector('img.acg-card-img');
+            const avatarUrl = imgElement ? imgElement.src : '';
+            
+            const descriptionElement = card.querySelector('.post-card-excerpt p');
+            const description = descriptionElement ? descriptionElement.textContent.trim() : 'No description available';
+            
+            // Extract tags
+            const tagElements = card.querySelectorAll('.tagsCatContainer a');
+            const tags = Array.from(tagElements).map(tag => tag.textContent.trim()).filter(tag => tag);
+            
+            // Extract rating (count filled stars)
+            const starElements = card.querySelectorAll('.ccr-star.filled');
+            const rating = starElements.length;
+            
+            // Extract download count
+            const downloadElement = card.querySelector('.download-count');
+            const downloadCount = downloadElement ? parseInt(downloadElement.textContent.match(/\d+/)?.[0] || '0') : 0;
+            
+            // Extract upload date
+            const uploadElement = card.querySelector('.uploadDateCard');
+            const uploadDate = uploadElement ? uploadElement.textContent.replace('Uploaded:', '').trim() : '';
+            
+            // Extract content rating
+            const contentRatingElement = card.querySelector('.content-rating-sfw, .content-rating-nsfw');
+            const contentRating = contentRatingElement ? contentRatingElement.textContent.trim() : 'SFW';
+            
+            // Extract character link
+            const linkElement = card.querySelector('h3.aicc-card-title')?.closest('a');
+            const characterUrl = linkElement ? linkElement.href : '';
+            
+            // Extract character ID from URL
+            const characterId = characterUrl ? characterUrl.split('/').pop() : '';
+            
+            return {
+                url: avatarUrl,
+                description: description,
+                name: name,
+                fullPath: characterId,
+                fullUrl: characterUrl,
+                author: author,
+                authorUrl: `https://aicharactercards.com/author/${author}/`,
+                starCount: downloadCount,
+                rating: rating,
+                ratingCount: 0, // Not available in this API
+                nTokens: 0, // Not available in this API
+                forksCount: 0, // Not available in this API
+                nChats: 0, // Not available in this API
+                nMessages: 0, // Not available in this API
+                createdAt: uploadDate,
+                lastActivityAt: uploadDate,
+                avatar_url: avatarUrl,
+                max_res_url: avatarUrl,
+                verified: false, // Not available in this API
+                recommended: false, // Not available in this API
+                nsfw_image: contentRating === 'NSFW',
+                hasGallery: false, // Not available in this API
+                // Store original texts for hover display
+                originalName: name,
+                originalDescription: description,
+                originalTags: [...tags, ...tags, ...tags] // 原文, 译文, 值 (all same for AICC)
+            };
+        }).filter(character => character !== null); // Remove null entries (filtered ads)
+        
+        // Apply translations using the common function
+        return await applyTranslationsToCharacters(characters);
+        
+    } catch (error) {
+        console.error('Error fetching from AICC API:', error);
+        return [];
+    }
+}
+
+/**
  * Fetches characters based on specified search criteria.
  * @param {Object} options - The search options object.
  * @param {string} [options.searchTerm] - A search term to filter characters by name/description.
@@ -603,6 +746,10 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     
     if (apiProvider === 'janitor') {
         return await fetchCharactersFromJanitor({ searchTerm, includeTags, excludeTags, nsfw, sort, page });
+    }
+    
+    if (apiProvider === 'aicc') {
+        return await fetchCharactersFromAICC({ page });
     }
     
     // Default to CHub API
@@ -969,6 +1116,7 @@ async function displayCharactersInListViewPopup() {
                     <select id="apiProviderSelect" class="margin0">
                         <option value="chub">CHub</option>
                         <option value="janitor">JanitorAI</option>
+                        <option value="aicc">AICC</option>
                     </select>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -1036,7 +1184,12 @@ async function displayCharactersInListViewPopup() {
     const apiDisplay = document.getElementById('currentApiDisplay');
     if (apiDisplay) {
         const currentApi = extension_settings.chub.apiProvider || 'chub';
-        apiDisplay.textContent = `API: ${currentApi === 'janitor' ? 'JanitorAI' : 'CHub'}`;
+        const apiNames = {
+            'chub': 'CHub',
+            'janitor': 'JanitorAI',
+            'aicc': 'AICC'
+        };
+        apiDisplay.textContent = `API: ${apiNames[currentApi] || 'CHub'}`;
     }
 
     let clone = null;  // Store reference to the cloned image
@@ -1186,7 +1339,12 @@ async function displayCharactersInListViewPopup() {
         // Update API display
         const apiDisplay = document.getElementById('currentApiDisplay');
         if (apiDisplay) {
-            apiDisplay.textContent = `API: ${e.target.value === 'janitor' ? 'JanitorAI' : 'CHub'}`;
+            const apiNames = {
+                'chub': 'CHub',
+                'janitor': 'JanitorAI',
+                'aicc': 'AICC'
+            };
+            apiDisplay.textContent = `API: ${apiNames[e.target.value] || 'CHub'}`;
         }
         
         handleSearch(e);
