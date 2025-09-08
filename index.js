@@ -916,7 +916,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
                 // Store original texts for hover display
                 originalName: char.name || 'Unknown Character',
                 originalDescription: char.tagline || char.pageDescription || 'No description available',
-                originalTags: char.tags || []
+                originalTags: char.tags ? [...char.tags, ...char.tags, ...char.tags] : [] // 原文, 译文, 值 (all same for Character Tavern)
             };
         });
         
