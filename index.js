@@ -618,15 +618,25 @@ async function fetchCharactersFromAICC({ page=1 }) {
         // Format: /proxy/目标URL
         const proxyUrl = `/proxy/${encodeURIComponent(AICC_API_ENDPOINT)}`;
         
+        // Create form data for the proxy request
+        const proxyFormData = new FormData();
+        proxyFormData.append('action', 'load_more_posts');
+        proxyFormData.append('page', page.toString());
+        proxyFormData.append('instance_id', '2');
+        
+        // Add all post_ids
+        postIds.forEach(id => {
+            proxyFormData.append('post_ids[]', id.toString());
+        });
+        
         const response = await fetch(proxyUrl, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': 'https://aicharactercards.com/',
                 ...getRequestHeaders() // Use SillyTavern's request headers for authentication
             },
-            body: new URLSearchParams(formData)
+            body: proxyFormData
         });
         
         if (!response.ok) {
