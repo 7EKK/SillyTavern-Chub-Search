@@ -889,7 +889,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
         // Convert Character Tavern format to our standard format
         const characters = data.hits.map(char => {
             return {
-                url: char.avatar_url || '',
+                url: char.avatar_url || (char.author && char.name ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.author.toLowerCase().replace(/[^a-z0-9]/g, '')}/${char.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.png` : ''),
                 description: char.tagline || char.pageDescription || 'No description available',
                 name: char.name || 'Unknown Character',
                 fullPath: char.path || '',
