@@ -16,6 +16,8 @@ const API_ENDPOINT_SEARCH = "https://gateway.chub.ai/search";
 const API_ENDPOINT_DOWNLOAD = "https://api.chub.ai/api/characters/download";
 const JANITOR_API_ENDPOINT = "https://janitorai.com/hampter/characters";
 const AICC_API_ENDPOINT = "https://aicharactercards.com/wp-admin/admin-ajax.php";
+const CHARACTER_TAVERN_CONFIG_URL = "https://character-tavern.com/_app/immutable/chunks/tGxJOdv0.js";
+const CHARACTER_TAVERN_SEARCH_ENDPOINT = "https://search.character-tavern.com/indexes/characters/search";
 const CRAWL_API_ENDPOINT = "http://localhost:7010/crawl";
 const CRAWL_API_KEY = "sk-*";
 const TRANSLATE_API_ENDPOINT = "http://localhost:7009/translate";
@@ -29,7 +31,7 @@ const defaultSettings = {
     translateApiKey: "sk-*",
     crawlApiEndpoint: "http://localhost:7010/crawl",
     crawlApiKey: "sk-*",
-    apiProvider: "chub", // "chub", "janitor", or "aicc"
+    apiProvider: "chub", // "chub", "janitor", "aicc", or "character-tavern"
 };
 
 // 不同API的排序选项映射
@@ -51,6 +53,12 @@ const sortOptions = {
     },
     aicc: {
         "default": "默认"
+    },
+    "character-tavern": {
+        "likes:desc": "点赞数",
+        "messages:desc": "消息数",
+        "downloads:desc": "下载数",
+        "createdAt:desc": "创建时间"
     }
 };
 
@@ -58,10 +66,44 @@ let chubCharacters = [];
 let characterListContainer = null;  // A global variable to hold the reference
 let popupState = null;
 let savedPopupContent = null;
+let characterTavernAuth = null; // Cache for Character Tavern authorization token
+
+/**
+ * Gets Character Tavern authorization token from config file
+ * @returns {Promise<string|null>} - The authorization token or null if failed
+ */
+async function getCharacterTavernAuth() {
+    if (characterTavernAuth) {
+        return characterTavernAuth;
+    }
+    
+    try {
+        const response = await fetch(CHARACTER_TAVERN_CONFIG_URL);
+        if (!response.ok) {
+            console.error('Failed to fetch Character Tavern config:', response.status);
+            return null;
+        }
+        
+        const configText = await response.text();
+        // Extract authorization token using regex: n="TOKEN"
+        const authMatch = configText.match(/n="([^"]+)"/);
+        if (authMatch && authMatch[1]) {
+            characterTavernAuth = authMatch[1];
+            console.log('Character Tavern auth token obtained');
+            return characterTavernAuth;
+        } else {
+            console.error('Could not extract authorization token from config');
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching Character Tavern config:', error);
+        return null;
+    }
+}
 
 /**
  * Updates the sort options based on the selected API provider
- * @param {string} apiProvider - The API provider ("chub" or "janitor")
+ * @param {string} apiProvider - The API provider ("chub", "janitor", "aicc", or "character-tavern")
  */
 function updateSortOptions(apiProvider) {
     const sortSelect = document.getElementById('sortOrder');
@@ -743,6 +785,139 @@ async function fetchCharactersFromAICC({ page=1 }) {
 }
 
 /**
+ * Fetches characters from Character Tavern API based on specified search criteria.
+ * @param {Object} options - The search options object.
+ * @param {string} [options.searchTerm] - A search term to filter characters by name/description.
+ * @param {Array<string>} [options.includeTags] - A list of tags that the returned characters should include.
+ * @param {Array<string>} [options.excludeTags] - A list of tags that the returned characters should not include.
+ * @param {boolean} [options.nsfw] - Whether or not to include NSFW characters. Defaults to the extension settings.
+ * @param {string} [options.sort] - The criteria by which to sort the characters. Default is by likes.
+ * @param {number} [options.page=1] - The page number for pagination. Defaults to 1.
+ * @returns {Promise<Array>} - Resolves with an array of character objects that match the search criteria.
+ */
+async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, excludeTags, nsfw, sort, page=1 }) {
+    // Get authorization token
+    const authToken = await getCharacterTavernAuth();
+    if (!authToken) {
+        console.error('Failed to get Character Tavern authorization token');
+        return [];
+    }
+    
+    // Build filters
+    const filters = [];
+    if (!nsfw) {
+        filters.push("isNSFW = false");
+    }
+    if (includeTags && includeTags.length > 0) {
+        const tagFilters = includeTags.map(tag => `tags = '${tag}'`).join(' OR ');
+        filters.push(`(${tagFilters})`);
+    }
+    if (excludeTags && excludeTags.length > 0) {
+        const excludeFilters = excludeTags.map(tag => `tags != '${tag}'`).join(' AND ');
+        filters.push(`(${excludeFilters})`);
+    }
+    
+    // Default sort
+    const sortOptions = [
+        "likes:desc",
+        "messages:desc", 
+        "downloads:desc",
+        "createdAt:desc"
+    ];
+    
+    // Override with user selection if provided
+    if (sort && sort !== 'default') {
+        sortOptions[0] = sort;
+    }
+    
+    const requestBody = {
+        q: searchTerm || "",
+        hitsPerPage: extension_settings.chub.findCount || 20,
+        sort: sortOptions,
+        filter: filters,
+        page: page
+    };
+    
+    try {
+        const response = await fetch(CHARACTER_TAVERN_SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'accept': '*/*',
+                'accept-encoding': 'identity',
+                'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'authorization': `Bearer ${authToken}`,
+                'content-type': 'application/json',
+                'origin': 'https://character-tavern.com',
+                'referer': 'https://character-tavern.com/',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                'x-meilisearch-client': 'Meilisearch JavaScript (v0.52.0)'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            console.error('Character Tavern API error:', response.status, response.statusText);
+            // If 401/403, clear cached auth and retry once
+            if (response.status === 401 || response.status === 403) {
+                console.log('Auth token expired, clearing cache and retrying...');
+                characterTavernAuth = null;
+                return await fetchCharactersFromCharacterTavern({ searchTerm, includeTags, excludeTags, nsfw, sort, page });
+            }
+            return [];
+        }
+        
+        const data = await response.json();
+        console.log('Character Tavern API response:', data);
+        
+        if (!data.hits || !Array.isArray(data.hits)) {
+            console.error('Character Tavern API returned no hits');
+            return [];
+        }
+        
+        // Convert Character Tavern format to our standard format
+        const characters = data.hits.map(char => {
+            return {
+                url: char.avatar_url || '',
+                description: char.tagline || char.pageDescription || 'No description available',
+                name: char.name || 'Unknown Character',
+                fullPath: char.path || '',
+                fullUrl: char.path ? `https://character-tavern.com/character/${char.path}` : '',
+                author: char.author || 'Unknown',
+                authorUrl: char.author ? `https://character-tavern.com/author/${char.author}` : '',
+                starCount: char.likes || 0,
+                rating: 0, // Character Tavern doesn't have rating
+                ratingCount: 0,
+                nTokens: 0, // Not available in this API
+                forksCount: 0, // Not available in this API
+                nChats: char.messages || 0,
+                nMessages: char.messages || 0,
+                createdAt: char.createdAt ? new Date(char.createdAt * 1000).toISOString() : '',
+                lastActivityAt: char.lastUpdateAt ? new Date(char.lastUpdateAt * 1000).toISOString() : '',
+                avatar_url: char.avatar_url || '',
+                max_res_url: char.avatar_url || '',
+                verified: false, // Not available in this API
+                recommended: false, // Not available in this API
+                nsfw_image: char.isNSFW || false,
+                hasGallery: false, // Not available in this API
+                downloads: char.downloads || 0,
+                views: char.views || 0,
+                // Store original texts for hover display
+                originalName: char.name || 'Unknown Character',
+                originalDescription: char.tagline || char.pageDescription || 'No description available',
+                originalTags: char.tags || []
+            };
+        });
+        
+        // Apply translations using the common function
+        return await applyTranslationsToCharacters(characters);
+        
+    } catch (error) {
+        console.error('Error fetching from Character Tavern API:', error);
+        return [];
+    }
+}
+
+/**
  * Fetches characters based on specified search criteria.
  * @param {Object} options - The search options object.
  * @param {string} [options.searchTerm] - A search term to filter characters by name/description.
@@ -763,6 +938,10 @@ async function fetchCharactersBySearch({ searchTerm, includeTags, excludeTags, n
     
     if (apiProvider === 'aicc') {
         return await fetchCharactersFromAICC({ page });
+    }
+    
+    if (apiProvider === 'character-tavern') {
+        return await fetchCharactersFromCharacterTavern({ searchTerm, includeTags, excludeTags, nsfw, sort, page });
     }
     
     // Default to CHub API
@@ -1130,6 +1309,7 @@ async function displayCharactersInListViewPopup() {
                         <option value="chub">CHub</option>
                         <option value="janitor">JanitorAI</option>
                         <option value="aicc">AICC</option>
+                        <option value="character-tavern">Character Tavern</option>
                     </select>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -1200,7 +1380,8 @@ async function displayCharactersInListViewPopup() {
         const apiNames = {
             'chub': 'CHub',
             'janitor': 'JanitorAI',
-            'aicc': 'AICC'
+            'aicc': 'AICC',
+            'character-tavern': 'Character Tavern'
         };
         apiDisplay.textContent = `API: ${apiNames[currentApi] || 'CHub'}`;
     }
@@ -1355,7 +1536,8 @@ async function displayCharactersInListViewPopup() {
             const apiNames = {
                 'chub': 'CHub',
                 'janitor': 'JanitorAI',
-                'aicc': 'AICC'
+                'aicc': 'AICC',
+                'character-tavern': 'Character Tavern'
             };
             apiDisplay.textContent = `API: ${apiNames[e.target.value] || 'CHub'}`;
         }
