@@ -614,29 +614,27 @@ async function fetchCharactersFromAICC({ page=1 }) {
     });
     
     try {
-        // Use SillyTavern's CORS proxy to avoid CORS issues
-        // Format: /proxy/目标URL
-        const proxyUrl = `/proxy/${encodeURIComponent(AICC_API_ENDPOINT)}`;
+        // Use corsproxy.io to avoid CORS issues
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(AICC_API_ENDPOINT)}`;
         
-        // Create form data for the proxy request
-        const proxyFormData = new FormData();
-        proxyFormData.append('action', 'load_more_posts');
-        proxyFormData.append('page', page.toString());
-        proxyFormData.append('instance_id', '2');
+        // Create form data
+        const formData = new FormData();
+        formData.append('action', 'load_more_posts');
+        formData.append('page', page.toString());
+        formData.append('instance_id', '2');
         
         // Add all post_ids
         postIds.forEach(id => {
-            proxyFormData.append('post_ids[]', id.toString());
+            formData.append('post_ids[]', id.toString());
         });
         
         const response = await fetch(proxyUrl, {
             method: 'POST',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://aicharactercards.com/',
-                ...getRequestHeaders() // Use SillyTavern's request headers for authentication
+                'Referer': 'https://aicharactercards.com/'
             },
-            body: proxyFormData
+            body: formData
         });
         
         if (!response.ok) {
