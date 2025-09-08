@@ -844,7 +844,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
     
     const requestBody = {
         q: searchTerm || "",
-        hitsPerPage: extension_settings.chub.findCount || 20,
+        hitsPerPage: 49,
         sort: sortOptions,
         filter: filters,
         page: page
