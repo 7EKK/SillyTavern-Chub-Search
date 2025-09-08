@@ -889,7 +889,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
         // Convert Character Tavern format to our standard format
         const characters = data.hits.map(char => {
             return {
-                url: char.avatar_url || (char.author && char.name ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.author}/${char.name.toLowerCase().replace(/\s+/g, '_')}.png` : ''),
+                url: char.avatar_url || (char.path ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.path}.png` : ''),
                 description: char.tagline || char.pageDescription || 'No description available',
                 name: char.name || 'Unknown Character',
                 fullPath: char.path || '',
@@ -905,8 +905,8 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
                 nMessages: char.messages || 0,
                 createdAt: char.createdAt ? new Date(char.createdAt * 1000).toISOString() : '',
                 lastActivityAt: char.lastUpdateAt ? new Date(char.lastUpdateAt * 1000).toISOString() : '',
-                avatar_url: char.avatar_url || (char.author && char.name ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.author}/${char.name.toLowerCase().replace(/\s+/g, '_')}.png` : ''),
-                max_res_url: char.avatar_url || (char.author && char.name ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.author}/${char.name.toLowerCase().replace(/\s+/g, '_')}.png` : ''),
+                avatar_url: char.avatar_url || (char.path ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.path}.png` : ''),
+                max_res_url: char.avatar_url || (char.path ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.path}.png` : ''),
                 verified: false, // Not available in this API
                 recommended: false, // Not available in this API
                 nsfw_image: char.isNSFW || false,
