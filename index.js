@@ -618,7 +618,8 @@ async function fetchCharactersFromAICC({ page=1 }) {
         const response = await fetch('/api/proxy', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...getRequestHeaders() // Use SillyTavern's request headers for authentication
             },
             body: JSON.stringify({
                 url: AICC_API_ENDPOINT,
