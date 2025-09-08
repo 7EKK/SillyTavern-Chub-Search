@@ -894,7 +894,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
         const characters = data.hits.map(char => {
             return {
                 url: char.avatar_url || (char.path ? `https://cards.character-tavern.com/cdn-cgi/image/fit=scale-down,format=auto,width=600/${char.path}.png` : ''),
-                description: char.tagline || char.pageDescription || 'No description available',
+                description: char.pageDescription || char.tagline || 'No description available',
                 name: char.name || 'Unknown Character',
                 fullPath: char.path || '',
                 fullUrl: char.path ? `https://character-tavern.com/character/${char.path}` : '',
@@ -919,7 +919,7 @@ async function fetchCharactersFromCharacterTavern({ searchTerm, includeTags, exc
                 views: char.views || 0,
                 // Store original texts for hover display
                 originalName: char.name || 'Unknown Character',
-                originalDescription: char.tagline || char.pageDescription || 'No description available',
+                originalDescription: char.pageDescription || char.tagline || 'No description available',
                 originalTags: char.tags ? [...char.tags, ...char.tags, ...char.tags] : [] // 原文, 译文, 值 (all same for Character Tavern)
             };
         });
