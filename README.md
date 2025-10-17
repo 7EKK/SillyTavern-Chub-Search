@@ -1,4 +1,4 @@
-# SillyTavern Chub Search
+# SillyTavern Chub Search (English)
 
 SillyTavern Chub Search is an which provides a quick and easy way to search for new cards from [CHUB](https://www.chub.ai/about) from the comfort of your tavern. 
 
