@@ -37,28 +37,28 @@ const defaultSettings = {
 // 不同API的排序选项映射
 const sortOptions = {
     chub: {
-        "download_count": "下载次数",
-        "rating": "评分",
-        "created_at": "创建日期",
-        "name": "名称",
-        "n_tokens": "Token数量",
-        "random": "随机"
+        "download_count": "Download Count",
+        "rating": "Rating",
+        "created_at": "Creation Date",
+        "name": "Name",
+        "n_tokens": "Token Count",
+        "random": "Random"
     },
     janitor: {
-        "popular": "热门",
-        "latest": "最新",
-        "trending": "趋势",
-        "trending24": "24小时趋势",
-        "relevance": "相关性"
+        "popular": "Popularity",
+        "latest": "Latest",
+        "trending": "Trending",
+        "trending24": "Trending 24h",
+        "relevance": "Relevance"
     },
     aicc: {
-        "default": "默认"
+        "default": "Default"
     },
     "character-tavern": {
-        "likes:desc": "点赞数",
-        "messages:desc": "消息数",
-        "downloads:desc": "下载数",
-        "createdAt:desc": "创建时间"
+        "likes:desc": "Likes:desc",
+        "messages:desc": "Messages:desc",
+        "downloads:desc": "Downloads:desc",
+        "createdAt:desc": "Date:latest"
     }
 };
 
@@ -1366,15 +1366,15 @@ async function displayCharactersInListViewPopup() {
             <div class="search-tags">
                 <span class="search-tag search-tag-main">
                     <label for="characterSearchInput"><i class="fas fa-search"></i></label>
-                    <input type="text" id="characterSearchInput" class="search-input" placeholder="搜索CHUB角色...">
+                    <input type="text" id="characterSearchInput" class="search-input" placeholder="Search CHUB Characters...">
                 </span>
                 <span class="search-tag">
                     <label for="includeTags"><i class="fas fa-plus-square"></i></label>
-                    <input type="text" id="includeTags" class="search-input" placeholder="包含标签">
+                    <input type="text" id="includeTags" class="search-input" placeholder="Include tags">
                 </span>
                 <span class="search-tag">
                     <label for="excludeTags"><i class="fas fa-minus-square"></i></label>
-                    <input type="text" id="excludeTags" class="search-input" placeholder="排除标签">
+                    <input type="text" id="excludeTags" class="search-input" placeholder="Exclude tags">
                 </span>
             </div>
             <div class="page-buttons flex-container flex-no-wrap flex-align-center">
@@ -1384,7 +1384,7 @@ async function displayCharactersInListViewPopup() {
                     <button class="menu_button" id="pageUpButton"><i class="fas fa-chevron-right"></i></button>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
-                <label for="sortOrder">排序方式:</label> <!-- This is the label for sorting -->
+                <label for="sortOrder">Sort order:</label> <!-- This is the label for sorting -->
                 <select class="margin0" id="sortOrder">
                 ${Object.keys(readableOptions).map(key => `<option value="${key}">${readableOptions[key]}</option>`).join('')}
                 </select>
@@ -1403,7 +1403,7 @@ async function displayCharactersInListViewPopup() {
                     </select>
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
-                    <label for="enableTranslationCheckbox">翻译:</label>
+                    <label for="enableTranslationCheckbox">Enable Translation:</label>
                     <input type="checkbox" id="enableTranslationCheckbox">
                 </div>
                 <div class="flex-container flex-no-wrap flex-align-center">
@@ -1415,19 +1415,19 @@ async function displayCharactersInListViewPopup() {
                 <div id="apiConfigContainer" class="api-config-container" style="display: none;">
                     <div class="api-config-tags">
                         <span class="api-config-tag">
-                            <label for="translateEndpointInput">翻译API地址:</label>
+                            <label for="translateEndpointInput">Translation API:</label>
                             <input type="text" id="translateEndpointInput" class="api-config-input" placeholder="http://localhost:7009/translate">
                         </span>
                         <span class="api-config-tag">
-                            <label for="translateKeyInput">翻译API密钥:</label>
+                            <label for="translateKeyInput">Translation API Key:</label>
                             <input type="text" id="translateKeyInput" class="api-config-input" placeholder="sk-*">
                         </span>
                         <span class="api-config-tag">
-                            <label for="crawlEndpointInput">爬虫API地址:</label>
+                            <label for="crawlEndpointInput">Web Search API:</label>
                             <input type="text" id="crawlEndpointInput" class="api-config-input" placeholder="http://localhost:7010/crawl">
                         </span>
                         <span class="api-config-tag">
-                            <label for="crawlKeyInput">爬虫API密钥:</label>
+                            <label for="crawlKeyInput">Web Search API Key:</label>
                             <input type="text" id="crawlKeyInput" class="api-config-input" placeholder="sk-*">
                         </span>
                     </div>
